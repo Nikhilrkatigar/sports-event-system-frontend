@@ -4,6 +4,8 @@ import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
 import { CardSkeleton, ImageSkeleton, TableRowSkeleton } from '../../components/Skeletons';
 
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
 export default function HomePage() {
   const [settings, setSettings] = useState({});
   const [events, setEvents] = useState([]);
@@ -20,9 +22,9 @@ export default function HomePage() {
     ])
       .then(([settingsRes, eventsRes, galleryRes, leaderboardRes]) => {
         setSettings(settingsRes.data || {});
-        setEvents((eventsRes.data || []).slice(0, 6));
-        setGallery((galleryRes.data || []).slice(0, 6));
-        setLeaderboard((leaderboardRes.data || []).slice(0, 5));
+        setEvents(toArray(eventsRes?.data).slice(0, 6));
+        setGallery(toArray(galleryRes?.data).slice(0, 6));
+        setLeaderboard(toArray(leaderboardRes?.data).slice(0, 5));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -63,12 +65,12 @@ export default function HomePage() {
               <CardSkeleton />
               <CardSkeleton />
             </>
-          ) : events.length === 0 ? (
+          ) : toArray(events).length === 0 ? (
             <div className="col-span-full text-center py-12">
               <p className="text-gray-500">No events available</p>
             </div>
           ) : (
-            events.map(event => (
+            toArray(events).map(event => (
               <Link key={event._id} to={`/events/${event._id}`} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 group">
                 {event.image ? (
                   <img src={event.image} alt={event.title} className="w-full h-44 object-contain bg-gray-100 p-2" />
@@ -96,7 +98,7 @@ export default function HomePage() {
       </section>
 
       {/* Live Leaderboard */}
-      {loading || leaderboard.length > 0 ? (
+      {loading || toArray(leaderboard).length > 0 ? (
         <section className="py-16 px-4 bg-white">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-3xl font-bold text-center mb-8">Live Leaderboard</h2>
@@ -120,7 +122,7 @@ export default function HomePage() {
                       <TableRowSkeleton columns={4} />
                     </>
                   ) : (
-                    leaderboard.map((entry, i) => (
+                    toArray(leaderboard).map((entry, i) => (
                       <tr key={entry._id} className={i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                         <td className="px-4 py-3 font-bold">{i === 0 ? '1' : i === 1 ? '2' : i === 2 ? '3' : entry.rank}</td>
                         <td className="px-4 py-3 font-medium">{entry.teamOrPlayer}</td>
@@ -140,7 +142,7 @@ export default function HomePage() {
       ) : null}
 
       {/* Gallery */}
-      {loading || gallery.length > 0 ? (
+      {loading || toArray(gallery).length > 0 ? (
         <section className="py-16 px-4 bg-gray-50">
           <div className="max-w-7xl mx-auto">
             <h2 className="text-3xl font-bold text-center mb-8">Gallery</h2>
@@ -155,7 +157,7 @@ export default function HomePage() {
                   <ImageSkeleton height={200} width={200} />
                 </>
               ) : (
-                gallery.map(item => (
+                toArray(gallery).map(item => (
                   <div key={item._id} className="relative group overflow-hidden rounded-xl aspect-square">
                     <img src={item.image} alt={item.caption} className="w-full h-full object-contain bg-gray-100 p-2" />
                     {item.caption && (
