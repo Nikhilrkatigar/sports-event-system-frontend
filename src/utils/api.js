@@ -2,9 +2,29 @@ import axios from 'axios';
 
 const PROD_API_FALLBACK = 'https://sports-event-system-backend.onrender.com/api';
 
+const ensureApiPath = (value) => {
+  const input = String(value || '').trim();
+  if (!input) return '';
+
+  // Absolute URL: append /api when path is empty/root.
+  if (/^https?:\/\//i.test(input)) {
+    const url = new URL(input);
+    const path = (url.pathname || '').replace(/\/+$/, '');
+    if (!path || path === '/') {
+      url.pathname = '/api';
+    }
+    return url.toString().replace(/\/+$/, '');
+  }
+
+  // Relative path: normalize root to /api.
+  const path = input.replace(/\/+$/, '');
+  if (!path || path === '/') return '/api';
+  return path;
+};
+
 const resolveBaseUrl = () => {
   const envBase = (process.env.REACT_APP_API_URL || '').trim();
-  if (envBase) return envBase.replace(/\/+$/, '');
+  if (envBase) return ensureApiPath(envBase);
   if (process.env.NODE_ENV === 'production') return PROD_API_FALLBACK;
   return '/api';
 };
