@@ -8,11 +8,15 @@ export default function EventDetailPage() {
   const { id } = useParams();
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hasTournament, setHasTournament] = useState(false);
 
   useEffect(() => {
     API.get(`/events/${id}`)
       .then(r => setEvent(r.data))
       .finally(() => setLoading(false));
+    API.get(`/tournaments/event/${id}`)
+      .then(() => setHasTournament(true))
+      .catch(() => setHasTournament(false));
   }, [id]);
 
   if (loading) {
@@ -83,6 +87,12 @@ export default function EventDetailPage() {
             <Link to={`/register/${event._id}`} className="btn-primary inline-block text-center w-full py-3 text-base font-semibold rounded-xl">
               Register for {event.title} →
             </Link>
+
+            {hasTournament && (
+              <Link to={`/tournaments/${event._id}`} className="mt-3 inline-block text-center w-full py-3 text-base font-semibold rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:from-yellow-600 hover:to-orange-600 transition-all shadow-sm">
+                🏆 View Tournament Bracket
+              </Link>
+            )}
           </div>
         </div>
       </div>

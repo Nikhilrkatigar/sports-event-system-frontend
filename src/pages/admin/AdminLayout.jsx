@@ -13,7 +13,8 @@ const navItems = [
   { to: '/admin/scanner', label: 'QR Scanner' },
   { to: '/admin/settings', label: 'Settings' },
   { to: '/admin/audit', label: 'Audit Logs' },
-  { to: '/admin/users', label: 'Users' }
+  { to: '/admin/users', label: 'Users' },
+  { to: '/admin/tournaments', label: 'Tournaments' }
 ];
 
 const organizerAllowed = ['/admin/scanner', '/admin/registrations', '/admin/leaderboard'];

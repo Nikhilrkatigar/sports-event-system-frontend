@@ -12,6 +12,7 @@ import EventsPage from './pages/public/EventsPage';
 import EventDetailPage from './pages/public/EventDetailPage';
 import RegisterPage from './pages/public/RegisterPage';
 import LeaderboardPage from './pages/public/LeaderboardPage';
+import TournamentPage from './pages/public/TournamentPage';
 
 // Admin pages
 import LoginPage from './pages/admin/LoginPage';
@@ -25,6 +26,7 @@ import SiteSettings from './pages/admin/SiteSettings';
 import AuditLogs from './pages/admin/AuditLogs';
 import QRScanner from './pages/admin/QRScanner';
 import ManageUsers from './pages/admin/ManageUsers';
+import ManageTournaments from './pages/admin/ManageTournaments';
 
 const ProtectedRoute = ({ children }) => {
   const { admin, loading } = useAuth();
@@ -105,6 +107,7 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/register/:eventId" element={<RegisterPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/tournaments/:eventId" element={<TournamentPage />} />
 
           {/* Admin */}
           <Route path="/admin/login" element={<LoginPage />} />
@@ -117,6 +120,7 @@ export default function App() {
             <Route path="settings" element={<FullAccessRoute><SiteSettings /></FullAccessRoute>} />
             <Route path="audit" element={<FullAccessRoute><AuditLogs /></FullAccessRoute>} />
             <Route path="users" element={<FullAccessRoute><ManageUsers /></FullAccessRoute>} />
+            <Route path="tournaments" element={<FullAccessRoute><ManageTournaments /></FullAccessRoute>} />
             <Route path="scanner" element={<QRScanner />} />
           </Route>
         </Routes>
