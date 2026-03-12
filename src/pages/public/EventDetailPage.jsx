@@ -84,9 +84,15 @@ export default function EventDetailPage() {
               </div>
             )}
 
-            <Link to={`/register/${event._id}`} className="btn-primary inline-block text-center w-full py-3 text-base font-semibold rounded-xl">
-              Register for {event.title} →
-            </Link>
+            {event.registrationOpen === false ? (
+              <div className="w-full py-3 text-center text-base font-semibold rounded-xl bg-red-50 border border-red-200 text-red-700">
+                🚫 Registration Closed
+              </div>
+            ) : (
+              <Link to={`/register/${event._id}`} className="btn-primary inline-block text-center w-full py-3 text-base font-semibold rounded-xl">
+                Register for {event.title} →
+              </Link>
+            )}
 
             {hasTournament && (
               <Link to={`/tournaments/${event._id}`} className="mt-3 inline-block text-center w-full py-3 text-base font-semibold rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 text-white hover:from-yellow-600 hover:to-orange-600 transition-all shadow-sm">

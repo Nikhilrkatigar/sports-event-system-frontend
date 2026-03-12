@@ -223,95 +223,149 @@ export default function RegisterPage() {
     );
   }
 
+  const openEvents = events.filter(ev => ev.registrationOpen !== false);
+  const isEventClosed = selectedEvent && selectedEvent.registrationOpen === false;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Event Registration</h1>
-        <p className="text-gray-500 mb-8">Fill in player details to register</p>
+      <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Event Registration</h1>
+        <p className="text-gray-500 mb-6 text-sm sm:text-base">Fill in player details to register</p>
 
         <div className="card mb-6">
           <h2 className="font-semibold text-gray-800 mb-3">Step 1: Select Event</h2>
-          <select className="input-field" value={selectedEvent?._id || ''} onChange={e => selectEvent(events.find(ev => ev._id === e.target.value))}>
+          <select
+            className="input-field w-full text-base"
+            value={selectedEvent?._id || ''}
+            onChange={e => {
+              const ev = events.find(ev => ev._id === e.target.value);
+              if (ev) selectEvent(ev);
+            }}
+          >
             <option value="">-- Choose an Event --</option>
-            {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title} ({ev.type === 'team' ? `Team - ${ev.teamSize} players` : 'Individual'})</option>)}
+            {openEvents.map(ev => (
+              <option key={ev._id} value={ev._id}>
+                {ev.title} ({ev.type === 'team' ? `Team - ${ev.teamSize} players` : 'Individual'})
+              </option>
+            ))}
           </select>
         </div>
 
-        {selectedEvent && (
+        {isEventClosed && (
+          <div className="card mb-6 text-center">
+            <div className="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-xl text-sm font-semibold">
+              🚫 Registration is closed for this event
+            </div>
+          </div>
+        )}
+
+        {selectedEvent && !isEventClosed && (
           <div className="card">
-            <h2 className="font-semibold text-gray-800 mb-4">
-              Step 2: Player Details - <span className="text-blue-600">{selectedEvent.title}</span>
+            <h2 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">
+              Step 2: Player Details — <span className="text-blue-600">{selectedEvent.title}</span>
             </h2>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-3 py-2 text-left text-gray-600 font-medium w-16">Player</th>
-                    <th className="px-3 py-2 text-left text-gray-600 font-medium">Name *</th>
-                    <th className="px-3 py-2 text-left text-gray-600 font-medium">UUCMS No. *</th>
-                    <th className="px-3 py-2 text-left text-gray-600 font-medium">Phone *</th>
-                    <th className="px-3 py-2 text-left text-gray-600 font-medium">Department *</th>
-                    {selectedEvent.type === 'team' && <th className="px-3 py-2 text-center text-gray-600 font-medium">Leader</th>}
-                    {selectedEvent.type === 'team' && <th className="px-3 py-2"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {players.map((player, idx) => (
-                    <tr key={idx} className={`border-t border-gray-100 ${player.isSubstitute ? 'bg-yellow-50' : ''}`}>
-                      <td className="px-3 py-2 font-medium text-gray-500">
-                        {player.isSubstitute ? `Sub ${idx - selectedEvent.teamSize + 1}` : `P${idx + 1}`}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input className="input-field" placeholder="Full name" value={player.name} onChange={e => updatePlayer(idx, 'name', e.target.value)} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input className="input-field" placeholder="U02CG23S0001" value={player.uucms} onChange={e => updatePlayer(idx, 'uucms', e.target.value)} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input className="input-field" placeholder="Phone" value={player.phone} onChange={e => updatePlayer(idx, 'phone', e.target.value)} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <select className="input-field" value={player.department} onChange={e => updatePlayer(idx, 'department', e.target.value)}>
-                          <option value="">Select dept</option>
-                          {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                      </td>
-                      {selectedEvent.type === 'team' && (
-                        <td className="px-3 py-2 text-center">
+            <div className="space-y-4">
+              {players.map((player, idx) => (
+                <div
+                  key={idx}
+                  className={`rounded-xl border p-4 ${player.isSubstitute ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}
+                >
+                  {/* Card header */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      {player.isSubstitute
+                        ? `Substitute ${idx - (selectedEvent.teamSize || 1) + 1}`
+                        : `Player ${idx + 1}`}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      {selectedEvent.type === 'team' && !player.isSubstitute && (
+                        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer select-none">
                           <input
                             type="radio"
                             name="teamLeader"
                             checked={Boolean(player.isTeamLeader)}
-                            disabled={player.isSubstitute}
                             onChange={() => setTeamLeader(idx)}
+                            className="accent-blue-600"
                           />
-                        </td>
+                          Leader
+                        </label>
                       )}
-                      {selectedEvent.type === 'team' && (
-                        <td className="px-3 py-2">
-                          {player.isSubstitute && (
-                            <button onClick={() => removePlayer(idx)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
-                          )}
-                        </td>
+                      {selectedEvent.type === 'team' && player.isSubstitute && (
+                        <button
+                          onClick={() => removePlayer(idx)}
+                          className="text-red-500 hover:text-red-700 text-xs font-medium"
+                        >
+                          ✕ Remove
+                        </button>
                       )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </div>
+                  </div>
+
+                  {/* Inputs — stacked on mobile, 2-col on sm+ */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Full Name *</label>
+                      <input
+                        className="input-field w-full text-base"
+                        placeholder="Full name"
+                        value={player.name}
+                        onChange={e => updatePlayer(idx, 'name', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">UUCMS No. *</label>
+                      <input
+                        className="input-field w-full text-base"
+                        placeholder="U02CG23S0001"
+                        value={player.uucms}
+                        onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
+                      <input
+                        className="input-field w-full text-base"
+                        type="tel"
+                        placeholder="Phone number"
+                        value={player.phone}
+                        onChange={e => updatePlayer(idx, 'phone', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Department *</label>
+                      <select
+                        className="input-field w-full text-base"
+                        value={player.department}
+                        onChange={e => updatePlayer(idx, 'department', e.target.value)}
+                      >
+                        <option value="">Select department</option>
+                        {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {selectedEvent.type === 'team' && (
-              <>
-                <p className="mt-3 text-xs text-gray-500">Main players: {mainPlayers.length} (choose exactly one leader)</p>
-                <button onClick={addSubstitute} className="mt-3 text-sm text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-4 py-2 rounded-lg transition-colors">
-                  + Add Substitute Player
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <p className="text-xs text-gray-500">Main players: {mainPlayers.length} (choose exactly one leader)</p>
+                <button
+                  onClick={addSubstitute}
+                  className="text-sm text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-4 py-2 rounded-lg transition-colors"
+                >
+                  + Add Substitute
                 </button>
-              </>
+              </div>
             )}
 
-            <button onClick={handleSubmit} disabled={loading} className="btn-primary mt-6 w-full py-3 text-base font-semibold rounded-xl">
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="btn-primary mt-6 w-full py-3 text-base font-semibold rounded-xl"
+            >
               {loading ? 'Registering...' : 'Submit Registration'}
             </button>
           </div>
@@ -320,3 +374,4 @@ export default function RegisterPage() {
     </div>
   );
 }
+

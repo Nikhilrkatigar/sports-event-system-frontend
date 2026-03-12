@@ -180,6 +180,24 @@ export default function ManageEvents() {
                 <span>{ev.teamCount || ev.playerCount || 0} registered</span>
                 {ev.maxParticipants && <span>Max: {ev.maxParticipants}</span>}
               </div>
+              <button
+                onClick={async () => {
+                  try {
+                    const r = await API.patch(`/events/${ev._id}/toggle-registration`);
+                    setEvents(prev => prev.map(e => e._id === ev._id ? { ...e, registrationOpen: r.data.registrationOpen } : e));
+                    toast.success(`Registration ${r.data.registrationOpen ? 'opened' : 'closed'} for ${ev.title}`);
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Failed to toggle registration');
+                  }
+                }}
+                className={`w-full mb-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                  ev.registrationOpen === false
+                    ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                    : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                }`}
+              >
+                {ev.registrationOpen === false ? '🔒 Registration Closed — Click to Open' : '✅ Registration Open — Click to Close'}
+              </button>
               <div className="flex gap-2">
                 <button onClick={() => handleEdit(ev)} className="flex-1 text-center py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">✏️ Edit</button>
                 <button onClick={() => handleDelete(ev._id)} className="flex-1 text-center py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">🗑️ Delete</button>

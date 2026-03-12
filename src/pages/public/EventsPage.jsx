@@ -63,7 +63,11 @@ export default function EventsPage() {
                     </div>
                     <div className="flex gap-2">
                       <Link to={`/events/${event._id}`} className="text-blue-600 hover:underline text-sm font-medium">Details</Link>
-                      <Link to={`/register/${event._id}`} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors">Register</Link>
+                      {event.registrationOpen === false ? (
+                        <span className="bg-red-50 text-red-600 border border-red-200 px-3 py-1 rounded-lg text-sm font-medium cursor-not-allowed">Closed</span>
+                      ) : (
+                        <Link to={`/register/${event._id}`} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors">Register</Link>
+                      )}
                     </div>
                   </div>
                 </div>
