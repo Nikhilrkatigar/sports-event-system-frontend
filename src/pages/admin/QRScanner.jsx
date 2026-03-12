@@ -12,6 +12,25 @@ export default function QRScanner() {
   const [cameraError, setCameraError] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
 
+  const formatGender = (gender) => {
+    if (gender === 'male') return 'Male';
+    if (gender === 'female') return 'Female';
+    return 'Unspecified';
+  };
+
+  const getGenderSummary = (players = []) => {
+    const counts = players.reduce(
+      (acc, p) => {
+        if (p.gender === 'male') acc.male += 1;
+        else if (p.gender === 'female') acc.female += 1;
+        else acc.unspecified += 1;
+        return acc;
+      },
+      { male: 0, female: 0, unspecified: 0 }
+    );
+    return `Male: ${counts.male} • Female: ${counts.female} • Unspecified: ${counts.unspecified}`;
+  };
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
@@ -220,6 +239,11 @@ export default function QRScanner() {
                 <p className="text-sm text-green-700 mt-1">
                   {result.player?.uucms} {result.player?.department ? `• ${result.player.department}` : ''}
                 </p>
+              )}
+              {result.type === 'team' ? (
+                <p className="text-xs text-blue-700 mt-1">{getGenderSummary(result.players || [])}</p>
+              ) : (
+                <p className="text-xs text-green-700 mt-1">Gender: {formatGender(result.player?.gender)}</p>
               )}
               <p className="mt-2 font-medium">{result.message}</p>
             </div>

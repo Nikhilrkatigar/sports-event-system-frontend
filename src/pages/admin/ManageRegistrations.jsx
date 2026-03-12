@@ -96,6 +96,12 @@ const getPlayerRole = (player) => {
   return 'Player';
 };
 
+const formatGender = (gender) => {
+  if (gender === 'male') return 'Male';
+  if (gender === 'female') return 'Female';
+  return 'Unspecified';
+};
+
 export default function ManageRegistrations() {
   const [registrations, setRegistrations] = useState([]);
   const [events, setEvents] = useState([]);
@@ -180,6 +186,27 @@ export default function ManageRegistrations() {
     } catch (err) {
       const message = await getDownloadErrorMessage(err, 'Download failed');
       toast.error(message);
+    }
+  };
+
+  const updatePlayerGender = async (registrationId, playerId, gender) => {
+    if (!registrationId || !playerId) {
+      toast.error('Unable to update gender for this player');
+      return;
+    }
+    try {
+      const res = await API.patch(`/registrations/${registrationId}/players/${playerId}`, { gender });
+      const updated = res.data?.player;
+      setRegistrations(prev => prev.map(reg => {
+        if (reg._id !== registrationId) return reg;
+        return {
+          ...reg,
+          players: reg.players.map(p => p._id === playerId ? { ...p, gender: updated?.gender || gender } : p)
+        };
+      }));
+      toast.success('Gender updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update gender');
     }
   };
 
@@ -276,6 +303,7 @@ export default function ManageRegistrations() {
                               <th className="text-left py-1">UUCMS</th>
                               <th className="text-left py-1">Phone</th>
                               <th className="text-left py-1">Dept</th>
+                              <th className="text-left py-1">Gender</th>
                               <th className="text-left py-1">Role</th>
                               <th className="text-left py-1">Check-In</th>
                             </tr>
@@ -287,6 +315,18 @@ export default function ManageRegistrations() {
                                 <td className="py-1 font-mono">{p.uucms}</td>
                                 <td className="py-1">{p.phone}</td>
                                 <td className="py-1">{p.department}</td>
+                                <td className="py-1">
+                                  <select
+                                    className="input-field text-xs bg-white"
+                                    value={p.gender || 'unspecified'}
+                                    onChange={e => updatePlayerGender(reg._id, p._id, e.target.value)}
+                                  >
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="unspecified">Unspecified</option>
+                                  </select>
+                                  <span className="sr-only">{formatGender(p.gender)}</span>
+                                </td>
                                 <td className="py-1">{getPlayerRole(p)}</td>
                                 <td className="py-1">{p.checkInStatus ? <span className="text-green-600 font-semibold">Checked In</span> : <span className="text-gray-400">Pending</span>}</td>
                               </tr>

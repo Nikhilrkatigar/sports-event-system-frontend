@@ -8,7 +8,7 @@ import API from '../../utils/api';
 const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tech', 'M.Tech', 'BA', 'MA', 'B.Ed', 'Other'];
 const MAX_QR_TEXT_LENGTH = 1000;
 
-const emptyPlayer = () => ({ name: '', uucms: '', phone: '', department: '', isSubstitute: false, isTeamLeader: false });
+const emptyPlayer = () => ({ name: '', uucms: '', phone: '', department: '', gender: '', isSubstitute: false, isTeamLeader: false });
 const isImageDataUrl = (value) => typeof value === 'string' && value.startsWith('data:image/');
 const getSafeFileName = (value) => (value || 'qr-code').replace(/[^a-z0-9-_]/gi, '_').toLowerCase();
 
@@ -106,7 +106,7 @@ export default function RegisterPage() {
 
     for (let i = 0; i < players.length; i++) {
       const p = players[i];
-      if (!p.name || !p.uucms || !p.phone || !p.department) {
+      if (!p.name || !p.uucms || !p.phone || !p.department || !p.gender) {
         return toast.error(`Please fill all fields for Player ${i + 1}`);
       }
     }
@@ -210,6 +210,7 @@ export default function RegisterPage() {
                   </p>
                   <p className="text-sm text-gray-500">{player.uucms}</p>
                   <p className="text-sm text-gray-500">{player.department}</p>
+                  <p className="text-sm text-gray-500">Gender: {player.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : 'Unspecified'}</p>
                 </div>
               ))}
             </div>
@@ -344,6 +345,18 @@ export default function RegisterPage() {
                         {departments.map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Gender *</label>
+                      <select
+                        className="input-field w-full text-base"
+                        value={player.gender}
+                        onChange={e => updatePlayer(idx, 'gender', e.target.value)}
+                      >
+                        <option value="">Select gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -374,4 +387,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-
