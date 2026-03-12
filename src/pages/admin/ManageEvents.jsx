@@ -4,7 +4,7 @@ import API from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CardSkeleton } from '../../components/Skeletons';
 
-const empty = { title: '', type: 'single', teamSize: 2, description: '', rules: '', maxParticipants: '', date: '', image: '', imageUrl: '' };
+const empty = { title: '', type: 'single', scoreOrder: 'desc', teamSize: 2, description: '', rules: '', maxParticipants: '', date: '', image: '', imageUrl: '' };
 
 export default function ManageEvents() {
   const [events, setEvents] = useState([]);
@@ -53,7 +53,7 @@ export default function ManageEvents() {
   };
 
   const handleEdit = (ev) => {
-    setForm({ ...ev, imageUrl: ev.image || '', date: ev.date ? ev.date.substring(0, 10) : '' });
+    setForm({ ...ev, scoreOrder: ev.scoreOrder || 'desc', imageUrl: ev.image || '', date: ev.date ? ev.date.substring(0, 10) : '' });
     setEditId(ev._id);
     setShowForm(true);
     setImageMode('url');
@@ -99,6 +99,13 @@ export default function ManageEvents() {
               <select className="input-field" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
                 <option value="single">Single Player</option>
                 <option value="team">Team</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Scoring</label>
+              <select className="input-field" value={form.scoreOrder} onChange={e => setForm({ ...form, scoreOrder: e.target.value })}>
+                <option value="desc">Higher Score Wins</option>
+                <option value="asc">Lower Score Wins</option>
               </select>
             </div>
             {form.type === 'team' && (

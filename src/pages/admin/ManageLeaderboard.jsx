@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import API from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
@@ -6,9 +6,39 @@ import { TableRowSkeleton } from '../../components/Skeletons';
 
 const empty = { eventId: '', teamOrPlayer: '', score: '', rank: '' };
 
+const buildParticipantOptions = (applications, eventType) => {
+  if (!Array.isArray(applications)) return [];
+  const options = [];
+  const seen = new Set();
+
+  if (eventType === 'team') {
+    applications.forEach((app, index) => {
+      const label = app.teamName || app.teamId || `Team ${index + 1}`;
+      if (!label || seen.has(label)) return;
+      seen.add(label);
+      options.push({ value: label, label });
+    });
+    return options;
+  }
+
+  applications.forEach((app) => {
+    (app.players || []).forEach((player) => {
+      if (player.isSubstitute) return;
+      const label = player.uucms ? `${player.name} (${player.uucms})` : player.name;
+      if (!label || seen.has(label)) return;
+      seen.add(label);
+      options.push({ value: label, label });
+    });
+  });
+
+  return options;
+};
+
 export default function ManageLeaderboard() {
   const [entries, setEntries] = useState([]);
   const [events, setEvents] = useState([]);
+  const [participants, setParticipants] = useState([]);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,14 +59,70 @@ export default function ManageLeaderboard() {
     API.get('/events').then(r => setEvents(r.data));
   }, []);
 
+  useEffect(() => {
+    if (!form.eventId) {
+      setParticipants([]);
+      return;
+    }
+
+    let active = true;
+    setParticipantsLoading(true);
+    API.get(`/registrations?eventId=${form.eventId}`)
+      .then((r) => {
+        if (!active) return;
+        const event = events.find(ev => ev._id === form.eventId);
+        const eventType = event?.type || r.data?.[0]?.eventId?.type || 'single';
+        setParticipants(buildParticipantOptions(r.data, eventType));
+      })
+      .catch(() => {
+        if (!active) return;
+        setParticipants([]);
+      })
+      .finally(() => {
+        if (!active) return;
+        setParticipantsLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [form.eventId, events]);
+
+  const selectedEvent = useMemo(
+    () => events.find(ev => ev._id === form.eventId) || null,
+    [events, form.eventId]
+  );
+
+  const autoRank = useMemo(() => {
+    if (!form.eventId || form.score === '' || form.score === null || form.score === undefined) return '';
+    const score = Number(form.score);
+    if (Number.isNaN(score)) return '';
+    const order = selectedEvent?.scoreOrder === 'asc' ? 'asc' : 'desc';
+    const currentEntries = entries.filter(e => e.eventId?._id === form.eventId && e._id !== editId);
+    const scores = currentEntries.map(e => Number(e.score)).filter(s => !Number.isNaN(s));
+    scores.push(score);
+    scores.sort((a, b) => order === 'asc' ? a - b : b - a);
+    const rank = scores.indexOf(score) + 1;
+    return rank;
+  }, [entries, editId, form.eventId, form.score, selectedEvent?.scoreOrder]);
+
+  const participantOptions = useMemo(() => {
+    if (!form.teamOrPlayer) return participants;
+    const hasCurrent = participants.some(p => p.value === form.teamOrPlayer);
+    if (hasCurrent) return participants;
+    return [{ value: form.teamOrPlayer, label: `${form.teamOrPlayer} (current)` }, ...participants];
+  }, [participants, form.teamOrPlayer]);
+
   const handleSubmit = async () => {
-    if (!form.teamOrPlayer || !form.score) return toast.error('Player/Team name and score required');
+    if (!form.eventId) return toast.error('Event required');
+    if (!form.teamOrPlayer || form.score === '' || form.score === null || form.score === undefined) {
+      return toast.error('Player/Team and score required');
+    }
     try {
+      const payload = { ...form, rank: autoRank || form.rank || '' };
       if (editId) {
-        await API.put(`/leaderboard/${editId}`, form);
+        await API.put(`/leaderboard/${editId}`, payload);
         toast.success('Updated successfully');
       } else {
-        await API.post('/leaderboard', form);
+        await API.post('/leaderboard', payload);
         toast.success('Entry added successfully');
       }
       setForm(empty); setEditId(null); load();
@@ -72,22 +158,39 @@ export default function ManageLeaderboard() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Event</label>
-            <select className="input-field" value={form.eventId} onChange={e => setForm({ ...form, eventId: e.target.value })}>
+            <select className="input-field" value={form.eventId} onChange={e => setForm({ ...form, eventId: e.target.value, teamOrPlayer: '' })}>
               <option value="">Select Event</option>
               {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Player / Team *</label>
-            <input className="input-field" value={form.teamOrPlayer} onChange={e => setForm({ ...form, teamOrPlayer: e.target.value })} />
+            <select
+              className="input-field"
+              value={form.teamOrPlayer}
+              onChange={e => setForm({ ...form, teamOrPlayer: e.target.value })}
+              disabled={!form.eventId || participantsLoading}
+            >
+              <option value="">
+                {participantsLoading ? 'Loading participants...' : 'Select Player/Team'}
+              </option>
+              {participantOptions.map(p => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Score *</label>
             <input type="number" className="input-field" value={form.score} onChange={e => setForm({ ...form, score: e.target.value })} />
+            {selectedEvent && (
+              <div className="text-[11px] text-gray-400 mt-1">
+                {selectedEvent.scoreOrder === 'asc' ? 'Lower score wins' : 'Higher score wins'}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Rank</label>
-            <input type="number" className="input-field" value={form.rank} onChange={e => setForm({ ...form, rank: e.target.value })} />
+            <input type="number" className="input-field" value={autoRank || ''} readOnly placeholder="Auto" />
           </div>
         </div>
         <div className="flex gap-2 mt-4">

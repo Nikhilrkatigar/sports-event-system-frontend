@@ -61,6 +61,13 @@ API.interceptors.request.use((config) => {
 
 API.interceptors.response.use(
   (response) => {
+    const responseType = response.config?.responseType;
+    if (responseType === 'blob' || responseType === 'arraybuffer') {
+      return response;
+    }
+    if (response.data instanceof Blob || response.data instanceof ArrayBuffer) {
+      return response;
+    }
     response.data = normalizeUploads(response.data);
     return response;
   },

@@ -13,6 +13,46 @@ const getFilenameFromContentDisposition = (headerValue, fallbackName) => {
   return fallbackName;
 };
 
+const normalizeBlob = (data, typeHint) => {
+  if (data instanceof Blob) return data;
+  if (data instanceof ArrayBuffer) return new Blob([data], typeHint ? { type: typeHint } : undefined);
+  if (ArrayBuffer.isView(data)) return new Blob([data.buffer], typeHint ? { type: typeHint } : undefined);
+  return new Blob([data ?? ''], typeHint ? { type: typeHint } : undefined);
+};
+
+const extractErrorMessage = (text, fallback) => {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return fallback;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return parsed?.message || fallback;
+  } catch {
+    return trimmed.slice(0, 200);
+  }
+};
+
+const ensureExcelBlob = async (blob, typeHint, fallbackError) => {
+  const normalized = normalizeBlob(blob, typeHint);
+  const buffer = await normalized.arrayBuffer();
+  const header = new Uint8Array(buffer.slice(0, 4));
+  const isZip = header[0] === 0x50 && header[1] === 0x4b;
+  if (!isZip) {
+    const text = new TextDecoder().decode(buffer.slice(0, 200));
+    throw new Error(extractErrorMessage(text, fallbackError));
+  }
+  return new Blob([buffer], { type: typeHint || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+};
+
+const ensureCsvBlob = async (blob, typeHint, fallbackError) => {
+  const normalized = normalizeBlob(blob, typeHint);
+  const text = await normalized.text();
+  const firstChar = text.trim().charAt(0);
+  if (firstChar === '{' || firstChar === '<') {
+    throw new Error(extractErrorMessage(text, fallbackError));
+  }
+  return new Blob([text], { type: typeHint || 'text/csv' });
+};
+
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -22,6 +62,32 @@ const downloadBlob = (blob, filename) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+const getDownloadErrorMessage = async (error, fallback) => {
+  if (!error) return fallback;
+  const response = error.response;
+  if (response?.data instanceof Blob) {
+    try {
+      const text = await response.data.text();
+      if (!text) return fallback;
+      try {
+        const parsed = JSON.parse(text);
+        return parsed?.message || fallback;
+      } catch {
+        return text;
+      }
+    } catch {
+      return fallback;
+    }
+  }
+  const candidate = response?.data?.message || error.message || fallback;
+  if (typeof candidate === 'string') return candidate;
+  try {
+    return JSON.stringify(candidate);
+  } catch {
+    return String(candidate);
+  }
 };
 
 const getPlayerRole = (player) => {
@@ -85,10 +151,15 @@ export default function ManageRegistrations() {
       });
       const fallback = type === 'csv' ? 'registrations.csv' : 'Participants.xlsx';
       const filename = getFilenameFromContentDisposition(res.headers['content-disposition'], fallback);
-      downloadBlob(res.data, filename);
+      const typeHint = type === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      const blob = type === 'csv'
+        ? await ensureCsvBlob(res.data, typeHint, 'Export failed')
+        : await ensureExcelBlob(res.data, typeHint, 'Export failed');
+      downloadBlob(blob, filename);
       toast.success('Download started');
-    } catch {
-      toast.error('Export failed');
+    } catch (err) {
+      const message = await getDownloadErrorMessage(err, 'Export failed');
+      toast.error(message);
     }
   };
 
@@ -99,10 +170,16 @@ export default function ManageRegistrations() {
         responseType: 'blob'
       });
       const filename = getFilenameFromContentDisposition(res.headers['content-disposition'], 'participants.xlsx');
-      downloadBlob(res.data, filename);
+      const blob = await ensureExcelBlob(
+        res.data,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Download failed'
+      );
+      downloadBlob(blob, filename);
       toast.success('Download started');
-    } catch {
-      toast.error('Download failed');
+    } catch (err) {
+      const message = await getDownloadErrorMessage(err, 'Download failed');
+      toast.error(message);
     }
   };
 
