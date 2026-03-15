@@ -51,7 +51,6 @@ export default function LoginPage() {
         </form>
 
         <div className="mt-6 text-center">
-          <Link to="/admin/setup" className="block text-sm text-blue-600 hover:underline mb-2">First-time setup</Link>
           <Link to="/" className="text-sm text-gray-400 hover:text-gray-600">Back to Website</Link>
         </div>
       </div>
