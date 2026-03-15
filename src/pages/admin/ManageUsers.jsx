@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import API from '../../utils/api';
-import { CMS_ROLES } from '../../utils/roles';
+import { ROLE_DEFINITIONS } from '../../utils/roles';
 import { TableRowSkeleton } from '../../components/Skeletons';
+import PasswordInput from '../../components/PasswordInput';
 
 const emptyForm = { name: '', email: '', password: '', role: 'Coordinator' };
 
@@ -69,8 +70,11 @@ export default function ManageUsers() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
             <select className="input-field" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              {CMS_ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+              {ROLE_DEFINITIONS.map((role) => <option key={role.key} value={role.label}>{role.label}</option>)}
             </select>
+            <p className="text-[11px] text-gray-400 mt-1">
+              {ROLE_DEFINITIONS.find((role) => role.label === form.role)?.description}
+            </p>
           </div>
           <div className="sm:col-span-2">
             <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
@@ -83,10 +87,9 @@ export default function ManageUsers() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="block text-xs font-medium text-gray-600 mb-1">Password</label>
-            <input
-              type="password"
-              className="input-field"
+            <PasswordInput
+              label="Password"
+              className="input-field text-xs"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="Set initial password"

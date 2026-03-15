@@ -2,22 +2,20 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
-import { hasFullCmsAccess } from '../../utils/roles';
+import { getCanonicalRole, hasPermission } from '../../utils/roles';
 
 const navItems = [
-  { to: '/admin', label: 'Dashboard', end: true },
-  { to: '/admin/events', label: 'Events' },
-  { to: '/admin/registrations', label: 'Registrations' },
-  { to: '/admin/leaderboard', label: 'Leaderboard' },
-  { to: '/admin/gallery', label: 'Gallery' },
-  { to: '/admin/scanner', label: 'QR Scanner' },
-  { to: '/admin/settings', label: 'Settings' },
-  { to: '/admin/audit', label: 'Audit Logs' },
-  { to: '/admin/users', label: 'Users' },
-  { to: '/admin/tournaments', label: 'Tournaments' }
+  { to: '/admin', label: 'Dashboard', end: true, permission: 'view_dashboard' },
+  { to: '/admin/events', label: 'Events', permission: 'manage_events' },
+  { to: '/admin/registrations', label: 'Registrations', permission: 'view_registrations' },
+  { to: '/admin/leaderboard', label: 'Leaderboard', permission: 'manage_leaderboard' },
+  { to: '/admin/gallery', label: 'Gallery', permission: 'manage_gallery' },
+  { to: '/admin/scanner', label: 'QR Scanner', permission: 'check_in' },
+  { to: '/admin/settings', label: 'Settings', permission: 'manage_settings' },
+  { to: '/admin/audit', label: 'Audit Logs', permission: 'view_audit' },
+  { to: '/admin/users', label: 'Users', permission: 'manage_users' },
+  { to: '/admin/tournaments', label: 'Tournaments', permission: 'manage_tournaments' }
 ];
-
-const organizerAllowed = ['/admin/scanner', '/admin/registrations', '/admin/leaderboard'];
 
 export default function AdminLayout() {
   const { admin, logout } = useAuth();
@@ -30,9 +28,7 @@ export default function AdminLayout() {
     navigate('/admin/login');
   };
 
-  const visibleNavItems = hasFullCmsAccess(admin?.role)
-    ? navItems
-    : navItems.filter((item) => organizerAllowed.includes(item.to));
+  const visibleNavItems = navItems.filter((item) => hasPermission(admin?.role, item.permission));
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
@@ -51,7 +47,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="p-3 border-t border-white/10">
-          <div className="px-4 py-2 text-sm text-blue-300 truncate">{admin?.name} ({admin?.role || 'Admin'})</div>
+          <div className="px-4 py-2 text-sm text-blue-300 truncate">{admin?.name} ({getCanonicalRole(admin?.role) || 'User'})</div>
           <button onClick={handleLogout} className="sidebar-link w-full text-left text-red-300 hover:text-red-200">
             <span className="text-xs bg-white/20 rounded px-1.5 py-0.5">Exit</span><span>Logout</span>
           </button>

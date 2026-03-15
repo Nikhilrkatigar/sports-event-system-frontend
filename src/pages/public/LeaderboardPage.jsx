@@ -38,19 +38,19 @@ export default function LeaderboardPage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 py-12">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">🏆 Live Leaderboard</h1>
-          <p className="text-gray-500 mt-2">Updates every 30 seconds</p>
-          <div className="text-xs text-gray-400 mt-1">
-            {refreshing ? 'Refreshing now...' : lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Loading updates...'}
+        <div className="text-center mb-8 animate-fade-in">
+          <h1 className="text-4xl font-bold text-gray-900 animate-slide-down">🏆 Live Leaderboard</h1>
+          <p className="text-gray-500 mt-4 animate-slide-up">Updates every 30 seconds</p>
+          <div className="text-xs text-gray-400 mt-1 animate-pulse">
+            {refreshing ? '🔄 Refreshing now...' : lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Loading updates...'}
           </div>
         </div>
 
-        <div className="mb-6 overflow-x-auto">
+        <div className="mb-6 overflow-x-auto animate-slide-down">
           <div className="inline-flex items-center gap-2 bg-white border border-gray-100 shadow-sm rounded-full px-2 py-2">
             <button
-              className={`px-4 py-1.5 text-sm rounded-full transition-colors ${
-                filter === '' ? 'bg-blue-700 text-white' : 'text-gray-600 hover:bg-gray-100'
+              className={`px-4 py-1.5 text-sm rounded-full transition-all transform hover:scale-110 ${
+                filter === '' ? 'bg-gradient-to-r from-blue-700 to-blue-800 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-100'
               }`}
               onClick={() => setFilter('')}
             >
@@ -59,8 +59,8 @@ export default function LeaderboardPage() {
             {events.map(ev => (
               <button
                 key={ev._id}
-                className={`px-4 py-1.5 text-sm rounded-full transition-colors ${
-                  filter === ev._id ? 'bg-blue-700 text-white' : 'text-gray-600 hover:bg-gray-100'
+                className={`px-4 py-1.5 text-sm rounded-full transition-all transform hover:scale-110 ${
+                  filter === ev._id ? 'bg-gradient-to-r from-blue-700 to-blue-800 text-white shadow-lg' : 'text-gray-600 hover:bg-gray-100'
                 }`}
                 onClick={() => setFilter(ev._id)}
               >
@@ -71,7 +71,7 @@ export default function LeaderboardPage() {
         </div>
 
         {loading && data.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100 animate-fade-in">
             <table className="w-full text-sm">
               <thead className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
                 <tr>
@@ -91,8 +91,8 @@ export default function LeaderboardPage() {
             </table>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <div className="text-5xl mb-4">🏅</div>
+          <div className="text-center py-20 text-gray-400 animate-fade-in">
+            <div className="text-5xl mb-4 animate-bounce">🏅</div>
             <p>No results yet. Check back soon!</p>
           </div>
         ) : (
@@ -101,25 +101,25 @@ export default function LeaderboardPage() {
               {topThree.map((entry, i) => (
                 <div
                   key={entry._id}
-                  className={`rounded-2xl border shadow-sm px-4 py-5 text-center ${
-                    i === 0 ? 'bg-yellow-50 border-yellow-200' : i === 1 ? 'bg-gray-50 border-gray-200' : 'bg-orange-50 border-orange-200'
+                  className={`rounded-2xl border shadow-md hover:shadow-xl transition-all transform hover:scale-110 px-4 py-5 text-center animate-stagger-${i + 1} ${
+                    i === 0 ? 'bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200 ring-2 ring-yellow-300' : i === 1 ? 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200 ring-2 ring-gray-300' : 'bg-gradient-to-br from-orange-50 to-red-50 border-orange-200 ring-2 ring-orange-300'
                   }`}
                 >
-                  <div className="text-3xl mb-2">
+                  <div className={`text-4xl mb-2 inline-block animate-bounce ${i === 0 ? 'animate-float' : ''}`}>
                     {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
                   </div>
-                  <div className="text-lg font-semibold text-gray-900">{entry.teamOrPlayer}</div>
-                  <div className="text-xs text-gray-500 mt-1">{entry.eventId?.title || '—'}</div>
-                  <div className="mt-3 text-2xl font-bold text-blue-800">{entry.score}</div>
-                  <div className="text-xs text-gray-400 mt-1">Rank #{entry.rank}</div>
+                  <div className="text-lg font-bold text-gray-900">{entry.teamOrPlayer}</div>
+                  <div className="text-xs text-gray-500 mt-1 font-medium">{entry.eventId?.title || '—'}</div>
+                  <div className="mt-3 text-3xl font-black bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">{entry.score}</div>
+                  <div className="text-xs text-gray-400 mt-1">#{entry.rank}</div>
                 </div>
               ))}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 hover:shadow-xl transition-shadow animate-slide-up">
               <table className="w-full text-sm">
                 <thead className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
-                  <tr>
+                  <tr className="animate-slide-down">
                     <th className="px-6 py-4 text-left">Rank</th>
                     <th className="px-6 py-4 text-left">Player / Team</th>
                     <th className="px-6 py-4 text-left">Event</th>
@@ -132,12 +132,12 @@ export default function LeaderboardPage() {
                       <td colSpan="4" className="px-6 py-6 text-center text-gray-400">Only top 3 available</td>
                     </tr>
                   ) : (
-                    rest.map((entry) => (
-                      <tr key={entry._id} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-6 py-4 font-semibold text-gray-700">#{entry.rank}</td>
+                    rest.map((entry, idx) => (
+                      <tr key={entry._id} className={`border-t border-gray-100 hover:bg-blue-50 transition-all animate-stagger-${(idx % 6) + 1}`}>
+                        <td className="px-6 py-4 font-bold text-orange-600">#{entry.rank}</td>
                         <td className="px-6 py-4 font-semibold text-gray-900">{entry.teamOrPlayer}</td>
                         <td className="px-6 py-4 text-gray-500">{entry.eventId?.title || '—'}</td>
-                        <td className="px-6 py-4 text-right font-bold text-blue-700">{entry.score}</td>
+                        <td className="px-6 py-4 text-right font-bold text-lg text-blue-700">{entry.score}</td>
                       </tr>
                     ))
                   )}

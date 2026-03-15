@@ -1,8 +1,10 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import API from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { TableRowSkeleton } from '../../components/Skeletons';
+import { useAuth } from '../../context/AuthContext';
+import { hasPermission } from '../../utils/roles';
 
 const getFilenameFromContentDisposition = (headerValue, fallbackName) => {
   if (!headerValue) return fallbackName;
@@ -103,14 +105,21 @@ const formatGender = (gender) => {
 };
 
 export default function ManageRegistrations() {
+  const { admin } = useAuth();
   const [registrations, setRegistrations] = useState([]);
   const [events, setEvents] = useState([]);
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [attendance, setAttendance] = useState('');
   const [expanded, setExpanded] = useState(null);
+  const [editingTeam, setEditingTeam] = useState(null);
+  const [editingTeamName, setEditingTeamName] = useState('');
   const [downloadEvent, setDownloadEvent] = useState('');
   const [loading, setLoading] = useState(false);
   const { confirm } = useConfirm();
+
+  const canEditRegistration = hasPermission(admin?.role, 'manage_registrations');
+  const canCheckIn = hasPermission(admin?.role, 'check_in');
 
   const load = async () => {
     setLoading(true);
@@ -118,7 +127,8 @@ export default function ManageRegistrations() {
       const params = new URLSearchParams();
       if (filter) params.append('eventId', filter);
       if (search) params.append('search', search);
-      const res = await API.get(`/registrations?${params}`);
+      if (attendance) params.append('attendance', attendance);
+      const res = await API.get(`/registrations?${params.toString()}`);
       setRegistrations(res.data);
     } finally {
       setLoading(false);
@@ -129,11 +139,22 @@ export default function ManageRegistrations() {
     API.get('/events').then(r => setEvents(r.data));
   }, []);
 
-  useEffect(() => { load(); }, [filter, search]);
+  useEffect(() => { load(); }, [filter, search, attendance]);
+
+  const summary = useMemo(() => {
+    const totalPlayers = registrations.reduce((sum, reg) => sum + reg.players.length, 0);
+    const checkedInPlayers = registrations.reduce((sum, reg) => sum + reg.players.filter((player) => player.checkInStatus).length, 0);
+    return {
+      registrations: registrations.length,
+      players: totalPlayers,
+      checkedIn: checkedInPlayers,
+      pending: Math.max(totalPlayers - checkedInPlayers, 0)
+    };
+  }, [registrations]);
 
   const handleDelete = async (id) => {
     const confirmed = await confirm({
-      title: '🗑️ Delete Registration',
+      title: 'Delete Registration',
       message: 'Are you sure you want to delete this registration? This action cannot be undone.',
       confirmText: 'Delete',
       cancelText: 'Cancel',
@@ -190,10 +211,6 @@ export default function ManageRegistrations() {
   };
 
   const updatePlayerGender = async (registrationId, playerId, gender) => {
-    if (!registrationId || !playerId) {
-      toast.error('Unable to update gender for this player');
-      return;
-    }
     try {
       const res = await API.patch(`/registrations/${registrationId}/players/${playerId}`, { gender });
       const updated = res.data?.player;
@@ -201,12 +218,46 @@ export default function ManageRegistrations() {
         if (reg._id !== registrationId) return reg;
         return {
           ...reg,
-          players: reg.players.map(p => p._id === playerId ? { ...p, gender: updated?.gender || gender } : p)
+          players: reg.players.map(player => player._id === playerId ? { ...player, gender: updated?.gender || gender } : player)
         };
       }));
       toast.success('Gender updated');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update gender');
+    }
+  };
+
+  const updateCheckInStatus = async (registrationId, playerId, checkInStatus) => {
+    try {
+      const res = await API.patch(`/registrations/${registrationId}/players/${playerId}/checkin`, { checkInStatus });
+      const updated = res.data?.player;
+      setRegistrations(prev => prev.map(reg => {
+        if (reg._id !== registrationId) return reg;
+        return {
+          ...reg,
+          players: reg.players.map(player => player._id === playerId ? { ...player, checkInStatus: updated?.checkInStatus ?? checkInStatus } : player)
+        };
+      }));
+      toast.success(checkInStatus ? 'Player checked in' : 'Check-in reverted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update check-in status');
+    }
+  };
+
+  const updateTeamName = async (registrationId, newTeamName) => {
+    if (!registrationId || !newTeamName.trim()) {
+      toast.error('Please enter a team name');
+      return;
+    }
+    try {
+      const res = await API.patch(`/registrations/${registrationId}`, { teamName: newTeamName.trim() });
+      setRegistrations(prev => prev.map(reg =>
+        reg._id === registrationId ? { ...reg, teamName: res.data.teamName } : reg
+      ));
+      setEditingTeam(null);
+      toast.success('Team name updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update team name');
     }
   };
 
@@ -217,6 +268,25 @@ export default function ManageRegistrations() {
         <div className="flex gap-2">
           <button onClick={() => exportAll('csv')} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Export CSV</button>
           <button onClick={() => exportAll('excel')} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Export Excel</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="card">
+          <div className="text-sm text-gray-500">Registrations</div>
+          <div className="text-2xl font-bold text-gray-900">{summary.registrations}</div>
+        </div>
+        <div className="card">
+          <div className="text-sm text-gray-500">Players</div>
+          <div className="text-2xl font-bold text-gray-900">{summary.players}</div>
+        </div>
+        <div className="card">
+          <div className="text-sm text-gray-500">Checked In</div>
+          <div className="text-2xl font-bold text-green-700">{summary.checkedIn}</div>
+        </div>
+        <div className="card">
+          <div className="text-sm text-gray-500">Pending</div>
+          <div className="text-2xl font-bold text-orange-700">{summary.pending}</div>
         </div>
       </div>
 
@@ -235,10 +305,15 @@ export default function ManageRegistrations() {
       </div>
 
       <div className="flex gap-3 mb-4 flex-wrap">
-        <input className="input-field max-w-xs" placeholder="Search name or UUCMS..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input-field max-w-xs" placeholder="Search name, UUCMS, team..." value={search} onChange={e => setSearch(e.target.value)} />
         <select className="input-field max-w-xs" value={filter} onChange={e => setFilter(e.target.value)}>
           <option value="">All Events</option>
           {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
+        </select>
+        <select className="input-field max-w-xs" value={attendance} onChange={e => setAttendance(e.target.value)}>
+          <option value="">All Attendance</option>
+          <option value="pending">Pending Check-in</option>
+          <option value="checked_in">Checked In</option>
         </select>
       </div>
 
@@ -251,6 +326,7 @@ export default function ManageRegistrations() {
               <tr>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Event</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Team ID</th>
+                <th className="px-4 py-3 text-left text-gray-600 font-medium">Team Name</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Players</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Date</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Check-in</th>
@@ -260,15 +336,15 @@ export default function ManageRegistrations() {
             <tbody>
               {loading ? (
                 <>
-                  <TableRowSkeleton columns={6} />
-                  <TableRowSkeleton columns={6} />
-                  <TableRowSkeleton columns={6} />
-                  <TableRowSkeleton columns={6} />
-                  <TableRowSkeleton columns={6} />
+                  <TableRowSkeleton columns={7} />
+                  <TableRowSkeleton columns={7} />
+                  <TableRowSkeleton columns={7} />
+                  <TableRowSkeleton columns={7} />
+                  <TableRowSkeleton columns={7} />
                 </>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
                     No registrations found
                   </td>
                 </tr>
@@ -277,7 +353,48 @@ export default function ManageRegistrations() {
                   <Fragment key={reg._id}>
                     <tr className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{reg.eventId?.title || '-'}</td>
-                      <td className="px-4 py-3 text-gray-500">{reg.teamId || '-'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-sm">{reg.teamId || '-'}</td>
+                      <td className="px-4 py-3">
+                        {editingTeam === reg._id ? (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={editingTeamName}
+                              onChange={e => setEditingTeamName(e.target.value)}
+                              className="input-field text-sm py-1 px-2"
+                              placeholder="Team name"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => updateTeamName(reg._id, editingTeamName)}
+                              className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setEditingTeam(null)}
+                              className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{reg.teamName || '-'}</span>
+                            {reg.teamId && canEditRegistration && (
+                              <button
+                                onClick={() => {
+                                  setEditingTeam(reg._id);
+                                  setEditingTeamName(reg.teamName || '');
+                                }}
+                                className="text-xs text-blue-600 hover:underline"
+                              >
+                                Edit
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <button onClick={() => setExpanded(expanded === reg._id ? null : reg._id)} className="text-blue-600 hover:underline text-xs">
                           {reg.players.length} players {expanded === reg._id ? '▲' : '▼'}
@@ -286,56 +403,79 @@ export default function ManageRegistrations() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{new Date(reg.createdAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
                         <span className="text-xs">
-                          {reg.players.filter(p => p.checkInStatus).length}/{reg.players.length} checked in
+                          {reg.players.filter(player => player.checkInStatus).length}/{reg.players.length} checked in
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <button onClick={() => handleDelete(reg._id)} className="btn-danger text-xs">Delete</button>
-                      </td>
-                  </tr>
-                  {expanded === reg._id && (
-                    <tr className="bg-blue-50">
-                      <td colSpan="6" className="px-6 py-3">
-                        <table className="w-full text-xs">
-                          <thead>
-                            <tr className="text-gray-600">
-                              <th className="text-left py-1">Name</th>
-                              <th className="text-left py-1">UUCMS</th>
-                              <th className="text-left py-1">Phone</th>
-                              <th className="text-left py-1">Dept</th>
-                              <th className="text-left py-1">Gender</th>
-                              <th className="text-left py-1">Role</th>
-                              <th className="text-left py-1">Check-In</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reg.players.map((p, i) => (
-                              <tr key={i} className="border-t border-blue-200">
-                                <td className="py-1">{p.name}</td>
-                                <td className="py-1 font-mono">{p.uucms}</td>
-                                <td className="py-1">{p.phone}</td>
-                                <td className="py-1">{p.department}</td>
-                                <td className="py-1">
-                                  <select
-                                    className="input-field text-xs bg-white"
-                                    value={p.gender || 'unspecified'}
-                                    onChange={e => updatePlayerGender(reg._id, p._id, e.target.value)}
-                                  >
-                                    <option value="male">Male</option>
-                                    <option value="female">Female</option>
-                                    <option value="unspecified">Unspecified</option>
-                                  </select>
-                                  <span className="sr-only">{formatGender(p.gender)}</span>
-                                </td>
-                                <td className="py-1">{getPlayerRole(p)}</td>
-                                <td className="py-1">{p.checkInStatus ? <span className="text-green-600 font-semibold">Checked In</span> : <span className="text-gray-400">Pending</span>}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        {canEditRegistration ? (
+                          <button onClick={() => handleDelete(reg._id)} className="btn-danger text-xs">Delete</button>
+                        ) : (
+                          <span className="text-xs text-gray-400">Read only</span>
+                        )}
                       </td>
                     </tr>
-                  )}
+                    {expanded === reg._id && (
+                      <tr className="bg-blue-50">
+                        <td colSpan="7" className="px-6 py-3">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-gray-600">
+                                <th className="text-left py-1">Name</th>
+                                <th className="text-left py-1">UUCMS</th>
+                                <th className="text-left py-1">Phone</th>
+                                <th className="text-left py-1">Dept</th>
+                                <th className="text-left py-1">Gender</th>
+                                <th className="text-left py-1">Role</th>
+                                <th className="text-left py-1">Check-In</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {reg.players.map((player) => (
+                                <tr key={player._id} className="border-t border-blue-200">
+                                  <td className="py-1">{player.name}</td>
+                                  <td className="py-1 font-mono">{player.uucms}</td>
+                                  <td className="py-1">{player.phone}</td>
+                                  <td className="py-1">{player.department}</td>
+                                  <td className="py-1">
+                                    {canEditRegistration ? (
+                                      <select
+                                        className="input-field text-xs bg-white"
+                                        value={player.gender || 'unspecified'}
+                                        onChange={e => updatePlayerGender(reg._id, player._id, e.target.value)}
+                                      >
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                        <option value="unspecified">Unspecified</option>
+                                      </select>
+                                    ) : (
+                                      <span>{formatGender(player.gender)}</span>
+                                    )}
+                                  </td>
+                                  <td className="py-1">{getPlayerRole(player)}</td>
+                                  <td className="py-1">
+                                    <div className="flex items-center gap-2">
+                                      {player.checkInStatus ? (
+                                        <span className="text-green-600 font-semibold">Checked In</span>
+                                      ) : (
+                                        <span className="text-gray-400">Pending</span>
+                                      )}
+                                      {canCheckIn && (
+                                        <button
+                                          onClick={() => updateCheckInStatus(reg._id, player._id, !player.checkInStatus)}
+                                          className="text-[11px] border border-gray-200 bg-white px-2 py-1 rounded hover:bg-gray-50"
+                                        >
+                                          {player.checkInStatus ? 'Undo' : 'Check In'}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
                   </Fragment>
                 ))
               )}

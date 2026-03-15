@@ -97,11 +97,12 @@ export default function ManageLeaderboard() {
     if (Number.isNaN(score)) return '';
     const order = selectedEvent?.scoreOrder === 'asc' ? 'asc' : 'desc';
     const currentEntries = entries.filter(e => e.eventId?._id === form.eventId && e._id !== editId);
-    const scores = currentEntries.map(e => Number(e.score)).filter(s => !Number.isNaN(s));
+    const scores = currentEntries
+      .map(e => Number(e.score))
+      .filter(s => !Number.isNaN(s));
     scores.push(score);
     scores.sort((a, b) => order === 'asc' ? a - b : b - a);
-    const rank = scores.indexOf(score) + 1;
-    return rank;
+    return scores.findIndex((entryScore) => entryScore === score) + 1;
   }, [entries, editId, form.eventId, form.score, selectedEvent?.scoreOrder]);
 
   const participantOptions = useMemo(() => {
@@ -184,7 +185,7 @@ export default function ManageLeaderboard() {
             <input type="number" className="input-field" value={form.score} onChange={e => setForm({ ...form, score: e.target.value })} />
             {selectedEvent && (
               <div className="text-[11px] text-gray-400 mt-1">
-                {selectedEvent.scoreOrder === 'asc' ? 'Lower score wins' : 'Higher score wins'}
+                {selectedEvent.scoreOrder === 'asc' ? 'Lower score wins' : 'Higher score wins'} · Equal scores share the same rank
               </div>
             )}
           </div>

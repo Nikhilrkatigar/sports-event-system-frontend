@@ -14,6 +14,7 @@ export default function Navbar() {
   const links = [
     { to: '/', label: 'Home' },
     { to: '/events', label: 'Events' },
+    { to: '/tournaments', label: 'Tournaments' },
     { to: '/register', label: 'Register' },
     { to: '/leaderboard', label: 'Leaderboard' },
   ];

@@ -3,8 +3,22 @@ import toast from 'react-hot-toast';
 import API from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CardSkeleton } from '../../components/Skeletons';
+import { EVENT_STATUS_OPTIONS, formatEventDeadline, getEventStatusMeta } from '../../utils/events';
 
-const empty = { title: '', type: 'single', scoreOrder: 'desc', teamSize: 2, description: '', rules: '', maxParticipants: '', date: '', image: '', imageUrl: '' };
+const empty = {
+  title: '',
+  type: 'single',
+  status: 'draft',
+  scoreOrder: 'desc',
+  teamSize: 2,
+  description: '',
+  rules: '',
+  maxParticipants: '',
+  date: '',
+  registrationDeadline: '',
+  image: '',
+  imageUrl: ''
+};
 
 export default function ManageEvents() {
   const [events, setEvents] = useState([]);
@@ -26,7 +40,7 @@ export default function ManageEvents() {
       setPageLoading(false);
     }
   };
-  
+
   useEffect(() => { load(); }, []);
 
   const handleSubmit = async () => {
@@ -34,7 +48,9 @@ export default function ManageEvents() {
     setLoading(true);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => { if (v !== '' && k !== 'imageUrl') fd.append(k, v); });
+      Object.entries(form).forEach(([k, v]) => {
+        if (v !== '' && k !== 'imageUrl') fd.append(k, v);
+      });
       if (imageMode === 'upload' && file) fd.append('image', file);
       else if (imageMode === 'url' && form.imageUrl) fd.set('image', form.imageUrl);
 
@@ -45,23 +61,35 @@ export default function ManageEvents() {
         await API.post('/events', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         toast.success('Event created');
       }
-      setForm(empty); setEditId(null); setFile(null); setShowForm(false);
+      setForm(empty);
+      setEditId(null);
+      setFile(null);
+      setShowForm(false);
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Error saving event');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEdit = (ev) => {
-    setForm({ ...ev, scoreOrder: ev.scoreOrder || 'desc', imageUrl: ev.image || '', date: ev.date ? ev.date.substring(0, 10) : '' });
-    setEditId(ev._id);
+  const handleEdit = (event) => {
+    setForm({
+      ...event,
+      scoreOrder: event.scoreOrder || 'desc',
+      status: event.status || 'draft',
+      imageUrl: event.image || '',
+      date: event.date ? event.date.substring(0, 10) : '',
+      registrationDeadline: event.registrationDeadline ? event.registrationDeadline.substring(0, 16) : ''
+    });
+    setEditId(event._id);
     setShowForm(true);
     setImageMode('url');
   };
 
   const handleDelete = async (id) => {
     const confirmed = await confirm({
-      title: '🗑️ Delete Event',
+      title: 'Delete Event',
       message: 'Are you sure you want to delete this event? This action cannot be undone.',
       confirmText: 'Delete',
       cancelText: 'Cancel',
@@ -74,6 +102,16 @@ export default function ManageEvents() {
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete event');
+    }
+  };
+
+  const toggleRegistration = async (event) => {
+    try {
+      const r = await API.patch(`/events/${event._id}/toggle-registration`);
+      setEvents((prev) => prev.map((item) => (item._id === event._id ? { ...item, ...r.data } : item)));
+      toast.success(`Registration ${r.data.registrationOpen ? 'opened' : 'closed'} for ${event.title}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to toggle registration');
     }
   };
 
@@ -102,6 +140,12 @@ export default function ManageEvents() {
               </select>
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Lifecycle Status</label>
+              <select className="input-field" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                {EVENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Scoring</label>
               <select className="input-field" value={form.scoreOrder} onChange={e => setForm({ ...form, scoreOrder: e.target.value })}>
                 <option value="desc">Higher Score Wins</option>
@@ -121,6 +165,10 @@ export default function ManageEvents() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Event Date</label>
               <input type="date" className="input-field" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Registration Deadline</label>
+              <input type="datetime-local" className="input-field" value={form.registrationDeadline} onChange={e => setForm({ ...form, registrationDeadline: e.target.value })} />
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
@@ -170,47 +218,52 @@ export default function ManageEvents() {
             <p className="text-gray-500">No events created yet</p>
           </div>
         ) : (
-          events.map(ev => (
-            <div key={ev._id} className="card flex flex-col">
-              {ev.image && <img src={ev.image} alt={ev.title} className="w-full h-36 object-contain bg-gray-100 p-2 rounded-lg mb-3" />}
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{ev.title}</h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${ev.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                    {ev.type === 'team' ? `Team • ${ev.teamSize}` : 'Individual'}
+          events.map((event) => {
+            const statusMeta = getEventStatusMeta(event);
+            return (
+              <div key={event._id} className="card flex flex-col">
+                {event.image && <img src={event.image} alt={event.title} className="w-full h-36 object-contain bg-gray-100 p-2 rounded-lg mb-3" />}
+                <div className="flex items-start justify-between mb-2 gap-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{event.title}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                      {event.type === 'team' ? `Team • ${event.teamSize}` : 'Individual'}
+                    </span>
+                  </div>
+                  <span className={`text-[11px] px-2 py-1 rounded-full border whitespace-nowrap ${statusMeta.className}`}>
+                    {statusMeta.label}
                   </span>
                 </div>
+                {event.date && <p className="text-xs text-gray-400 mb-1">Event date: {new Date(event.date).toLocaleDateString()}</p>}
+                {event.registrationDeadline && <p className="text-xs text-gray-400 mb-1">Deadline: {formatEventDeadline(event.registrationDeadline)}</p>}
+                <p className="text-xs text-gray-500 flex-1 line-clamp-2 mb-3">{event.description}</p>
+                <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                  <span>{event.type === 'team' ? `${event.teamCount || 0} teams` : `${event.playerCount || 0} players`} registered</span>
+                  {event.maxParticipants ? <span>Max: {event.maxParticipants}</span> : <span>Unlimited</span>}
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
+                  <span>{event.remainingSlots == null ? 'Unlimited slots' : `${event.remainingSlots} slots left`}</span>
+                  {event.type === 'team' && event.availableTeams != null && <span>{event.availableTeams} teams left</span>}
+                </div>
+                {(event.status === 'published' || event.status === 'open' || event.status === 'full') && (
+                  <button
+                    onClick={() => toggleRegistration(event)}
+                    className={`w-full mb-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                      event.registrationOpen === false
+                        ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                        : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                    }`}
+                  >
+                    {event.registrationOpen === false ? 'Registration Closed - Click to Open' : 'Registration Open - Click to Close'}
+                  </button>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => handleEdit(event)} className="flex-1 text-center py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">Edit</button>
+                  <button onClick={() => handleDelete(event._id)} className="flex-1 text-center py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
+                </div>
               </div>
-              {ev.date && <p className="text-xs text-gray-400 mb-1">📅 {new Date(ev.date).toLocaleDateString()}</p>}
-              <p className="text-xs text-gray-500 flex-1 line-clamp-2 mb-3">{ev.description}</p>
-              <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
-                <span>{ev.teamCount || ev.playerCount || 0} registered</span>
-                {ev.maxParticipants && <span>Max: {ev.maxParticipants}</span>}
-              </div>
-              <button
-                onClick={async () => {
-                  try {
-                    const r = await API.patch(`/events/${ev._id}/toggle-registration`);
-                    setEvents(prev => prev.map(e => e._id === ev._id ? { ...e, registrationOpen: r.data.registrationOpen } : e));
-                    toast.success(`Registration ${r.data.registrationOpen ? 'opened' : 'closed'} for ${ev.title}`);
-                  } catch (err) {
-                    toast.error(err.response?.data?.message || 'Failed to toggle registration');
-                  }
-                }}
-                className={`w-full mb-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                  ev.registrationOpen === false
-                    ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                    : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                }`}
-              >
-                {ev.registrationOpen === false ? '🔒 Registration Closed — Click to Open' : '✅ Registration Open — Click to Close'}
-              </button>
-              <div className="flex gap-2">
-                <button onClick={() => handleEdit(ev)} className="flex-1 text-center py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">✏️ Edit</button>
-                <button onClick={() => handleDelete(ev._id)} className="flex-1 text-center py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">🗑️ Delete</button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

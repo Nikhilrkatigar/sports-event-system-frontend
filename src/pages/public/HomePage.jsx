@@ -1,8 +1,9 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
 import { CardSkeleton, ImageSkeleton, TableRowSkeleton } from '../../components/Skeletons';
+import { canRegisterForEvent, getEventStatusMeta, PUBLIC_EVENT_STATUSES } from '../../utils/events';
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -22,7 +23,11 @@ export default function HomePage() {
     ])
       .then(([settingsRes, eventsRes, galleryRes, leaderboardRes]) => {
         setSettings(settingsRes.data || {});
-        setEvents(toArray(eventsRes?.data).slice(0, 6));
+        setEvents(
+          toArray(eventsRes?.data)
+            .filter((event) => PUBLIC_EVENT_STATUSES.includes(event.status))
+            .slice(0, 6)
+        );
         setGallery(toArray(galleryRes?.data).slice(0, 6));
         setLeaderboard(toArray(leaderboardRes?.data).slice(0, 5));
       })
@@ -33,27 +38,28 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-blue-900 via-blue-700 to-indigo-800 text-white py-24 px-4">
+      <section className="bg-gradient-to-br from-blue-900 via-sky-700 to-cyan-700 text-white py-24 px-4 animate-fade-in">
         <div className="max-w-4xl mx-auto text-center">
-          {settings.collegeLogo && <img src={settings.collegeLogo} alt="logo" className="w-24 h-24 rounded-full mx-auto mb-6 border-4 border-white/30 object-cover" />}
-          <div className="inline-block bg-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full mb-4 uppercase tracking-wider">Sports Event</div>
-          <h1 className="text-5xl md:text-6xl font-extrabold mb-4">{settings.eventName || 'Annual Sports Day'}</h1>
-          <p className="text-xl text-blue-200 mb-2">{settings.collegeName || 'Global College'}</p>
-          {settings.venue && <p className="text-blue-300 mb-1">Venue: {settings.venue}</p>}
-          {settings.eventDate && <p className="text-blue-300 mb-6">Date: {new Date(settings.eventDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}
-          <p className="text-blue-100 max-w-2xl mx-auto mb-8 text-lg">{settings.description || 'Welcome to our annual sports celebration!'}</p>
-          <Link to="/register" className="bg-orange-500 hover:bg-orange-400 text-white font-bold px-8 py-4 rounded-xl text-lg transition-colors inline-block shadow-lg">
+          {settings.collegeLogo && <img src={settings.collegeLogo} alt="logo" className="w-24 h-24 rounded-full mx-auto mb-6 border-4 border-white/30 object-cover animate-bounce duration-700" />}
+          <div className="inline-block bg-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full mb-4 uppercase tracking-wider animate-slide-down">Sports Event</div>
+          <h1 className="text-5xl md:text-6xl font-extrabold mb-4 animate-slide-up">{settings.eventName || 'Annual Sports Day'}</h1>
+          <p className="text-xl text-blue-100 mb-2 animate-slide-up" style={{animationDelay: '0.1s'}}>{settings.collegeName || 'Global College'}</p>
+          {settings.venue && <p className="text-blue-200 mb-1 animate-slide-up" style={{animationDelay: '0.2s'}}>Venue: {settings.venue}</p>}
+          {settings.eventDate && <p className="text-blue-200 mb-6 animate-slide-up" style={{animationDelay: '0.3s'}}>Date: {new Date(settings.eventDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>}
+          <p className="text-blue-50 max-w-2xl mx-auto mb-8 text-lg animate-slide-up" style={{animationDelay: '0.4s'}}>{settings.description || 'Welcome to our annual sports celebration.'}</p>
+          <Link to="/register" className="bg-orange-500 hover:bg-orange-400 text-white font-bold px-8 py-4 rounded-xl text-lg transition-all transform hover:scale-105 hover:shadow-2xl inline-block shadow-lg animate-slide-up hover:animate-pulse" style={{animationDelay: '0.5s'}}>
             Register Now
           </Link>
         </div>
       </section>
 
-      {/* Events Preview */}
-      <section className="py-16 px-4 max-w-7xl mx-auto">
+      <section className="py-16 px-4 max-w-7xl mx-auto animate-fade-in">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-gray-900">Sports Events</h2>
-          <p className="text-gray-500 mt-2">Compete, win, and make memories</p>
+          <h2 className="text-3xl font-bold text-gray-900 relative inline-block animate-slide-down">
+            Sports Events
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 to-orange-500 rounded-full transform scale-x-0 group-hover:scale-x-100 transition-transform origin-left duration-300" style={{animation: 'scaleX 0.6s ease-out'}}></div>
+          </h2>
+          <p className="text-gray-500 mt-4 animate-slide-up">See what is open, full, live, and ready for registration</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {loading ? (
@@ -70,42 +76,52 @@ export default function HomePage() {
               <p className="text-gray-500">No events available</p>
             </div>
           ) : (
-            toArray(events).map(event => (
-              <Link key={event._id} to={`/events/${event._id}`} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 group">
-                {event.image ? (
-                  <img src={event.image} alt={event.title} className="w-full h-44 object-contain bg-gray-100 p-2" />
-                ) : (
-                  <div className="w-full h-44 bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-2xl font-bold text-blue-700">TROPHY</div>
-                )}
-                <div className="p-4">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                    {event.type === 'team' ? `Team (${event.teamSize})` : 'Individual'}
-                  </span>
-                  <h3 className="font-bold text-gray-900 mt-2">{event.title}</h3>
-                  <p className="text-gray-500 text-sm mt-1 line-clamp-2">{event.description}</p>
-                  <div className="mt-3 flex justify-between text-xs text-gray-400">
-                    {event.date && <span>{new Date(event.date).toLocaleDateString()}</span>}
-                    <span className="text-blue-600 font-medium">{event.type === 'team' ? `${event.teamCount || 0} teams` : `${event.playerCount || 0} registered`}</span>
+            toArray(events).map((event, idx) => {
+              const statusMeta = getEventStatusMeta(event);
+              return (
+                <Link key={event._id} to={`/events/${event._id}`} className={`bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all transform hover:scale-105 border border-gray-100 group animate-stagger-${idx + 1}`}>
+                  <div className="relative overflow-hidden h-44 bg-gray-100">
+                    {event.image ? (
+                      <img src={event.image} alt={event.title} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center text-2xl font-bold text-blue-700 group-hover:from-blue-200 group-hover:to-cyan-200 transition-colors">{event.title}</div>
+                    )}
                   </div>
-                </div>
-              </Link>
-            ))
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-all group-hover:scale-110 ${event.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                        {event.type === 'team' ? `Team (${event.teamSize})` : 'Individual'}
+                      </span>
+                      <span className={`text-[11px] border px-2 py-1 rounded-full transition-all group-hover:scale-110 ${statusMeta.className}`}>
+                        {statusMeta.label}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-gray-900 mt-2 group-hover:text-blue-600 transition-colors">{event.title}</h3>
+                    <p className="text-gray-500 text-sm mt-1 line-clamp-2">{event.description}</p>
+                    <div className="mt-3 space-y-1 text-xs text-gray-400">
+                      {event.date && <div>{new Date(event.date).toLocaleDateString()}</div>}
+                      {event.remainingSlots != null && <div>{event.remainingSlots} slots left</div>}
+                      <div>{canRegisterForEvent(event) ? 'Registration open now' : `Registration ${statusMeta.label.toLowerCase()}`}</div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })
           )}
         </div>
         <div className="text-center mt-8">
-          <Link to="/events" className="btn-primary inline-block">View All Events -&gt;</Link>
+          <Link to="/events" className="btn-primary inline-block transform hover:scale-110 transition-all shadow-lg hover:shadow-xl animate-scale-up">View All Events</Link>
         </div>
       </section>
 
-      {/* Live Leaderboard */}
-      {loading || toArray(leaderboard).length > 0 ? (
-        <section className="py-16 px-4 bg-white">
+      {(loading || toArray(leaderboard).length > 0) && (
+        <section className="py-16 px-4 bg-white animate-fade-in">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-8">Live Leaderboard</h2>
-            <div className="overflow-x-auto rounded-xl border border-gray-200">
+            <h2 className="text-3xl font-bold text-center mb-8 animate-slide-down">Live Leaderboard</h2>
+            <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-lg hover:shadow-xl transition-shadow">
               <table className="w-full text-sm">
-                <thead className="bg-blue-900 text-white">
-                  <tr>
+                <thead className="bg-gradient-to-r from-blue-900 to-blue-800 text-white">
+                  <tr className="animate-slide-down">
                     <th className="px-4 py-3 text-left">Rank</th>
                     <th className="px-4 py-3 text-left">Player / Team</th>
                     <th className="px-4 py-3 text-left">Event</th>
@@ -122,12 +138,12 @@ export default function HomePage() {
                       <TableRowSkeleton columns={4} />
                     </>
                   ) : (
-                    toArray(leaderboard).map((entry, i) => (
-                      <tr key={entry._id} className={i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                        <td className="px-4 py-3 font-bold">{i === 0 ? '1' : i === 1 ? '2' : i === 2 ? '3' : entry.rank}</td>
-                        <td className="px-4 py-3 font-medium">{entry.teamOrPlayer}</td>
+                    toArray(leaderboard).map((entry, idx) => (
+                      <tr key={entry._id} className={`border-t border-gray-100 hover:bg-blue-50 transition-colors animate-stagger-${idx + 1}`}>
+                        <td className="px-4 py-3 font-bold text-orange-600">#{entry.rank}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{entry.teamOrPlayer}</td>
                         <td className="px-4 py-3 text-gray-500">{entry.eventId?.title || '-'}</td>
-                        <td className="px-4 py-3 font-bold text-blue-700">{entry.score}</td>
+                        <td className="px-4 py-3 font-bold text-blue-700 text-lg">{entry.score}</td>
                       </tr>
                     ))
                   )}
@@ -135,17 +151,16 @@ export default function HomePage() {
               </table>
             </div>
             <div className="text-center mt-4">
-              <Link to="/leaderboard" className="text-blue-600 hover:underline text-sm font-medium">View Full Leaderboard -&gt;</Link>
+              <Link to="/leaderboard" className="text-blue-600 hover:text-blue-700 hover:underline text-sm font-medium transition-all transform hover:scale-105 inline-block">View Full Leaderboard →</Link>
             </div>
           </div>
         </section>
-      ) : null}
+      )}
 
-      {/* Gallery */}
-      {loading || toArray(gallery).length > 0 ? (
-        <section className="py-16 px-4 bg-gray-50">
+      {(loading || toArray(gallery).length > 0) && (
+        <section className="py-16 px-4 bg-gray-50 animate-fade-in">
           <div className="max-w-7xl mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-8">Gallery</h2>
+            <h2 className="text-3xl font-bold text-center mb-8 animate-slide-down">Gallery Highlights</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {loading ? (
                 <>
@@ -157,24 +172,25 @@ export default function HomePage() {
                   <ImageSkeleton height={200} width={200} />
                 </>
               ) : (
-                toArray(gallery).map(item => (
-                  <div key={item._id} className="relative group overflow-hidden rounded-xl aspect-square">
-                    <img src={item.image} alt={item.caption} className="w-full h-full object-contain bg-gray-100 p-2" />
-                    {item.caption && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 translate-y-full group-hover:translate-y-0 transition-transform">{item.caption}</div>
-                    )}
+                toArray(gallery).map((item, idx) => (
+                  <div key={item._id} className={`relative group overflow-hidden rounded-xl aspect-square shadow-md hover:shadow-xl transition-all transform hover:scale-110 cursor-pointer animate-stagger-${idx + 1}`}>
+                    <img src={item.image} alt={item.caption} className="w-full h-full object-contain bg-gray-100 p-2 group-hover:scale-125 transition-transform duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                      {item.caption && (
+                        <p className="text-white text-sm font-semibold translate-y-4 group-hover:translate-y-0 transition-transform duration-300">{item.caption}</p>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
             </div>
           </div>
         </section>
-      ) : null}
+      )}
 
-      {/* Footer */}
-      <footer className="bg-blue-900 text-white text-center py-6 text-sm">
-        <p>&copy; 2024 global college of management, it &amp; commerce  - Annual Sports Day</p>
-        <p className="mt-1">bulit and developed by Nikhil Katigar</p>
+      <footer className="bg-gradient-to-r from-blue-900 to-blue-800 text-white text-center py-8 text-sm shadow-lg">
+        <p className="font-semibold text-lg animate-slide-up">2024 Global College of Management, IT & Commerce - Annual Sports Day</p>
+        <p className="text-blue-300 text-xs mt-2 animate-slide-up" style={{animationDelay: '0.1s'}}>Built and developed by Nikhil Katigar</p>
       </footer>
     </div>
   );

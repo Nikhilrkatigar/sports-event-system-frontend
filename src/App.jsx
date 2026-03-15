@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { hasFullCmsAccess } from './utils/roles';
+import { getAdminHomeByRole, hasPermission } from './utils/roles';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import { setConfirmDialogRef } from './hooks/useConfirm';
 
@@ -13,9 +13,11 @@ import EventDetailPage from './pages/public/EventDetailPage';
 import RegisterPage from './pages/public/RegisterPage';
 import LeaderboardPage from './pages/public/LeaderboardPage';
 import TournamentPage from './pages/public/TournamentPage';
+import TournamentsPage from './pages/public/TournamentsPage';
 
 // Admin pages
 import LoginPage from './pages/admin/LoginPage';
+import SetupPage from './pages/admin/SetupPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import Dashboard from './pages/admin/Dashboard';
 import ManageEvents from './pages/admin/ManageEvents';
@@ -38,7 +40,14 @@ const FullAccessRoute = ({ children }) => {
   const { admin, loading } = useAuth();
   if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
   if (!admin) return <Navigate to="/admin/login" />;
-  return hasFullCmsAccess(admin.role) ? children : <Navigate to="/admin/scanner" replace />;
+  return hasPermission(admin.role, 'manage_users') ? children : <Navigate to={getAdminHomeByRole(admin.role)} replace />;
+};
+
+const PermissionRoute = ({ permission, children }) => {
+  const { admin, loading } = useAuth();
+  if (loading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  if (!admin) return <Navigate to="/admin/login" />;
+  return hasPermission(admin.role, permission) ? children : <Navigate to={getAdminHomeByRole(admin.role)} replace />;
 };
 
 export default function App() {
@@ -107,21 +116,23 @@ export default function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/register/:eventId" element={<RegisterPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/tournaments" element={<TournamentsPage />} />
           <Route path="/tournaments/:eventId" element={<TournamentPage />} />
 
           {/* Admin */}
           <Route path="/admin/login" element={<LoginPage />} />
+          <Route path="/admin/setup" element={<SetupPage />} />
           <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-            <Route index element={<FullAccessRoute><Dashboard /></FullAccessRoute>} />
-            <Route path="events" element={<FullAccessRoute><ManageEvents /></FullAccessRoute>} />
-            <Route path="registrations" element={<ManageRegistrations />} />
-            <Route path="leaderboard" element={<ManageLeaderboard />} />
-            <Route path="gallery" element={<FullAccessRoute><ManageGallery /></FullAccessRoute>} />
-            <Route path="settings" element={<FullAccessRoute><SiteSettings /></FullAccessRoute>} />
-            <Route path="audit" element={<FullAccessRoute><AuditLogs /></FullAccessRoute>} />
+            <Route index element={<PermissionRoute permission="view_dashboard"><Dashboard /></PermissionRoute>} />
+            <Route path="events" element={<PermissionRoute permission="manage_events"><ManageEvents /></PermissionRoute>} />
+            <Route path="registrations" element={<PermissionRoute permission="view_registrations"><ManageRegistrations /></PermissionRoute>} />
+            <Route path="leaderboard" element={<PermissionRoute permission="manage_leaderboard"><ManageLeaderboard /></PermissionRoute>} />
+            <Route path="gallery" element={<PermissionRoute permission="manage_gallery"><ManageGallery /></PermissionRoute>} />
+            <Route path="settings" element={<PermissionRoute permission="manage_settings"><SiteSettings /></PermissionRoute>} />
+            <Route path="audit" element={<PermissionRoute permission="view_audit"><AuditLogs /></PermissionRoute>} />
             <Route path="users" element={<FullAccessRoute><ManageUsers /></FullAccessRoute>} />
-            <Route path="tournaments" element={<FullAccessRoute><ManageTournaments /></FullAccessRoute>} />
-            <Route path="scanner" element={<QRScanner />} />
+            <Route path="tournaments" element={<PermissionRoute permission="manage_tournaments"><ManageTournaments /></PermissionRoute>} />
+            <Route path="scanner" element={<PermissionRoute permission="check_in"><QRScanner /></PermissionRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

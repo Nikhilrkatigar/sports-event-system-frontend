@@ -4,6 +4,13 @@ import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
+import { FormSkeleton } from '../../components/Skeletons';
+import {
+  canRegisterForEvent,
+  formatEventDeadline,
+  getEventStatusMeta,
+  PUBLIC_EVENT_STATUSES
+} from '../../utils/events';
 
 const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tech', 'M.Tech', 'BA', 'MA', 'B.Ed', 'Other'];
 const MAX_QR_TEXT_LENGTH = 1000;
@@ -41,31 +48,36 @@ export default function RegisterPage() {
   const [events, setEvents] = useState([]);
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [teamName, setTeamName] = useState('');
   const [players, setPlayers] = useState([emptyPlayer()]);
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [success, setSuccess] = useState(null);
 
   useEffect(() => {
     Promise.all([API.get('/events'), API.get('/settings')])
       .then(([eventsRes, settingsRes]) => {
-        setEvents(eventsRes.data);
+        const visibleEvents = (eventsRes.data || []).filter((event) => PUBLIC_EVENT_STATUSES.includes(event.status));
+        setEvents(visibleEvents);
         const cmsDepartments = settingsRes.data?.departments;
         if (Array.isArray(cmsDepartments) && cmsDepartments.length) setDepartments(cmsDepartments);
 
         if (eventId) {
-          const ev = eventsRes.data.find(e => e._id === eventId);
-          if (ev) selectEvent(ev);
+          const event = visibleEvents.find((item) => item._id === eventId);
+          if (event) selectEvent(event);
         }
       })
       .catch(() => {
         setDepartments(DEFAULT_DEPARTMENTS);
-      });
+      })
+      .finally(() => setPageLoading(false));
   }, [eventId]);
 
-  const selectEvent = (ev) => {
-    setSelectedEvent(ev);
-    if (ev.type === 'team') {
-      const nextPlayers = Array.from({ length: ev.teamSize }, (_, i) => ({ ...emptyPlayer(), isTeamLeader: i === 0 }));
+  const selectEvent = (event) => {
+    setSelectedEvent(event);
+    setTeamName('');
+    if (event.type === 'team') {
+      const nextPlayers = Array.from({ length: event.teamSize }, (_, index) => ({ ...emptyPlayer(), isTeamLeader: index === 0 }));
       setPlayers(nextPlayers);
     } else {
       setPlayers([{ ...emptyPlayer(), isTeamLeader: true }]);
@@ -73,13 +85,13 @@ export default function RegisterPage() {
   };
 
   const updatePlayer = (idx, field, value) => {
-    setPlayers(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p));
+    setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, [field]: value } : player));
   };
 
   const setTeamLeader = (idx) => {
-    setPlayers(prev => prev.map((p, i) => {
-      if (p.isSubstitute) return { ...p, isTeamLeader: false };
-      return { ...p, isTeamLeader: i === idx };
+    setPlayers(prev => prev.map((player, index) => {
+      if (player.isSubstitute) return { ...player, isTeamLeader: false };
+      return { ...player, isTeamLeader: index === idx };
     }));
   };
 
@@ -89,11 +101,11 @@ export default function RegisterPage() {
 
   const removePlayer = (idx) => {
     setPlayers(prev => {
-      const next = prev.filter((_, i) => i !== idx);
+      const next = prev.filter((_, index) => index !== idx);
       if (selectedEvent?.type === 'team') {
-        const hasLeader = next.some(p => !p.isSubstitute && p.isTeamLeader);
+        const hasLeader = next.some(player => !player.isSubstitute && player.isTeamLeader);
         if (!hasLeader) {
-          const firstMainIndex = next.findIndex(p => !p.isSubstitute);
+          const firstMainIndex = next.findIndex(player => !player.isSubstitute);
           if (firstMainIndex !== -1) next[firstMainIndex] = { ...next[firstMainIndex], isTeamLeader: true };
         }
       }
@@ -103,23 +115,37 @@ export default function RegisterPage() {
 
   const handleSubmit = async () => {
     if (!selectedEvent) return toast.error('Please select an event');
+    if (!canRegisterForEvent(selectedEvent)) return toast.error('Registration is not open for this event');
+
+    if (selectedEvent.type === 'team' && !teamName.trim()) {
+      return toast.error('Please enter a team name');
+    }
 
     for (let i = 0; i < players.length; i++) {
-      const p = players[i];
-      if (!p.name || !p.uucms || !p.phone || !p.department || !p.gender) {
+      const player = players[i];
+      if (!player.name || !player.uucms || !player.phone || !player.department || !player.gender) {
         return toast.error(`Please fill all fields for Player ${i + 1}`);
       }
     }
 
+    const mainPlayers = players.filter(player => !player.isSubstitute);
     if (selectedEvent.type === 'team') {
-      const mainPlayers = players.filter(p => !p.isSubstitute);
-      const leaderCount = mainPlayers.filter(p => p.isTeamLeader).length;
+      if (mainPlayers.length !== Number(selectedEvent.teamSize || 1)) {
+        return toast.error(`Exactly ${selectedEvent.teamSize} main players are required`);
+      }
+      const leaderCount = mainPlayers.filter(player => player.isTeamLeader).length;
       if (leaderCount !== 1) return toast.error('Please choose exactly one team leader');
+    } else if (mainPlayers.length !== 1) {
+      return toast.error('Single events accept only one participant');
     }
 
     setLoading(true);
     try {
-      const res = await API.post('/registrations', { eventId: selectedEvent._id, players });
+      const res = await API.post('/registrations', {
+        eventId: selectedEvent._id,
+        players,
+        teamName: selectedEvent.type === 'team' ? teamName : null
+      });
       setSuccess(res.data);
       toast.success('Registered successfully');
     } catch (err) {
@@ -168,7 +194,7 @@ export default function RegisterPage() {
   };
 
   const mainPlayers = useMemo(
-    () => players.filter(p => !p.isSubstitute),
+    () => players.filter(player => !player.isSubstitute),
     [players]
   );
 
@@ -201,8 +227,8 @@ export default function RegisterPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {success.players.map((player, i) => (
-                <div key={i} className="border border-gray-200 rounded-xl p-4 text-left">
+              {success.players.map((player, index) => (
+                <div key={index} className="border border-gray-200 rounded-xl p-4 text-left">
                   <p className="font-semibold text-gray-900 mb-1">
                     {player.name}
                     {player.isTeamLeader && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Leader</span>}
@@ -224,8 +250,8 @@ export default function RegisterPage() {
     );
   }
 
-  const openEvents = events.filter(ev => ev.registrationOpen !== false);
-  const isEventClosed = selectedEvent && selectedEvent.registrationOpen === false;
+  const statusMeta = selectedEvent ? getEventStatusMeta(selectedEvent) : null;
+  const isEventRegisterable = selectedEvent ? canRegisterForEvent(selectedEvent) : false;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -234,154 +260,196 @@ export default function RegisterPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Event Registration</h1>
         <p className="text-gray-500 mb-6 text-sm sm:text-base">Fill in player details to register</p>
 
-        <div className="card mb-6">
-          <h2 className="font-semibold text-gray-800 mb-3">Step 1: Select Event</h2>
-          <select
-            className="input-field w-full text-base"
-            value={selectedEvent?._id || ''}
-            onChange={e => {
-              const ev = events.find(ev => ev._id === e.target.value);
-              if (ev) selectEvent(ev);
-            }}
-          >
-            <option value="">-- Choose an Event --</option>
-            {openEvents.map(ev => (
-              <option key={ev._id} value={ev._id}>
-                {ev.title} ({ev.type === 'team' ? `Team - ${ev.teamSize} players` : 'Individual'})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {isEventClosed && (
-          <div className="card mb-6 text-center">
-            <div className="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-xl text-sm font-semibold">
-              🚫 Registration is closed for this event
+        {pageLoading ? (
+          <div className="space-y-6">
+            <div className="card">
+              <h2 className="font-semibold text-gray-800 mb-3">Step 1: Select Event</h2>
+              <FormSkeleton />
             </div>
           </div>
-        )}
-
-        {selectedEvent && !isEventClosed && (
-          <div className="card">
-            <h2 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">
-              Step 2: Player Details — <span className="text-blue-600">{selectedEvent.title}</span>
-            </h2>
-
-            <div className="space-y-4">
-              {players.map((player, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded-xl border p-4 ${player.isSubstitute ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}
-                >
-                  {/* Card header */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                      {player.isSubstitute
-                        ? `Substitute ${idx - (selectedEvent.teamSize || 1) + 1}`
-                        : `Player ${idx + 1}`}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      {selectedEvent.type === 'team' && !player.isSubstitute && (
-                        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer select-none">
-                          <input
-                            type="radio"
-                            name="teamLeader"
-                            checked={Boolean(player.isTeamLeader)}
-                            onChange={() => setTeamLeader(idx)}
-                            className="accent-blue-600"
-                          />
-                          Leader
-                        </label>
-                      )}
-                      {selectedEvent.type === 'team' && player.isSubstitute && (
-                        <button
-                          onClick={() => removePlayer(idx)}
-                          className="text-red-500 hover:text-red-700 text-xs font-medium"
-                        >
-                          ✕ Remove
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Inputs — stacked on mobile, 2-col on sm+ */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Full Name *</label>
-                      <input
-                        className="input-field w-full text-base"
-                        placeholder="Full name"
-                        value={player.name}
-                        onChange={e => updatePlayer(idx, 'name', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">UUCMS No. *</label>
-                      <input
-                        className="input-field w-full text-base"
-                        placeholder="U02CG23S0001"
-                        value={player.uucms}
-                        onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
-                      <input
-                        className="input-field w-full text-base"
-                        type="tel"
-                        placeholder="Phone number"
-                        value={player.phone}
-                        onChange={e => updatePlayer(idx, 'phone', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Department *</label>
-                      <select
-                        className="input-field w-full text-base"
-                        value={player.department}
-                        onChange={e => updatePlayer(idx, 'department', e.target.value)}
-                      >
-                        <option value="">Select department</option>
-                        {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Gender *</label>
-                      <select
-                        className="input-field w-full text-base"
-                        value={player.gender}
-                        onChange={e => updatePlayer(idx, 'gender', e.target.value)}
-                      >
-                        <option value="">Select gender</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
+        ) : (
+          <>
+            <div className="card mb-6">
+              <h2 className="font-semibold text-gray-800 mb-3">Step 1: Select Event</h2>
+              <select
+                className="input-field w-full text-base"
+                value={selectedEvent?._id || ''}
+                onChange={e => {
+                  const event = events.find(item => item._id === e.target.value);
+                  if (event) selectEvent(event);
+                }}
+              >
+                <option value="">-- Choose an Event --</option>
+                {events.map(event => (
+                  <option key={event._id} value={event._id}>
+                    {event.title} ({getEventStatusMeta(event).label})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {selectedEvent.type === 'team' && (
-              <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <p className="text-xs text-gray-500">Main players: {mainPlayers.length} (choose exactly one leader)</p>
-                <button
-                  onClick={addSubstitute}
-                  className="text-sm text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-4 py-2 rounded-lg transition-colors"
-                >
-                  + Add Substitute
-                </button>
+            {selectedEvent && (
+              <div className="card mb-6">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h2 className="font-semibold text-gray-900">{selectedEvent.title}</h2>
+                    <p className="text-sm text-gray-500">{selectedEvent.type === 'team' ? `${selectedEvent.teamSize} main players required` : 'Single participant event'}</p>
+                  </div>
+                  <span className={`text-xs border px-2 py-1 rounded-full ${statusMeta?.className}`}>
+                    {statusMeta?.label}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
+                  <div>Remaining slots: {selectedEvent.remainingSlots == null ? 'Unlimited' : selectedEvent.remainingSlots}</div>
+                  <div>Registered: {selectedEvent.type === 'team' ? `${selectedEvent.teamCount || 0} teams` : `${selectedEvent.playerCount || 0} players`}</div>
+                  {selectedEvent.registrationDeadline && <div>Deadline: {formatEventDeadline(selectedEvent.registrationDeadline)}</div>}
+                  {selectedEvent.date && <div>Event date: {new Date(selectedEvent.date).toLocaleDateString()}</div>}
+                </div>
               </div>
             )}
 
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="btn-primary mt-6 w-full py-3 text-base font-semibold rounded-xl"
-            >
-              {loading ? 'Registering...' : 'Submit Registration'}
-            </button>
-          </div>
+            {selectedEvent && !isEventRegisterable && (
+              <div className="card mb-6 text-center">
+                <div className="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-xl text-sm font-semibold">
+                  Registration is not open for this event right now
+                </div>
+              </div>
+            )}
+
+            {selectedEvent && isEventRegisterable && (
+              <div className="card">
+                <h2 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">
+                  Step 2: Player Details - <span className="text-blue-600">{selectedEvent.title}</span>
+                </h2>
+
+                {selectedEvent.type === 'team' && (
+                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">Team Name *</label>
+                    <input
+                      className="input-field w-full text-base"
+                      placeholder="Enter your team name"
+                      value={teamName}
+                      onChange={e => setTeamName(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-600 mt-1">This name will appear in the tournament bracket and reports.</p>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {players.map((player, idx) => (
+                    <div
+                      key={idx}
+                      className={`rounded-xl border p-4 ${player.isSubstitute ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                          {player.isSubstitute
+                            ? `Substitute ${idx - (selectedEvent.teamSize || 1) + 1}`
+                            : `Player ${idx + 1}`}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          {selectedEvent.type === 'team' && !player.isSubstitute && (
+                            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer select-none">
+                              <input
+                                type="radio"
+                                name="teamLeader"
+                                checked={Boolean(player.isTeamLeader)}
+                                onChange={() => setTeamLeader(idx)}
+                                className="accent-blue-600"
+                              />
+                              Leader
+                            </label>
+                          )}
+                          {selectedEvent.type === 'team' && player.isSubstitute && (
+                            <button
+                              onClick={() => removePlayer(idx)}
+                              className="text-red-500 hover:text-red-700 text-xs font-medium"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Full Name *</label>
+                          <input
+                            className="input-field w-full text-base"
+                            placeholder="Full name"
+                            value={player.name}
+                            onChange={e => updatePlayer(idx, 'name', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">UUCMS No. *</label>
+                          <input
+                            className="input-field w-full text-base"
+                            placeholder="U02CG23S0001"
+                            value={player.uucms}
+                            onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
+                          <input
+                            className="input-field w-full text-base"
+                            type="tel"
+                            placeholder="Phone number"
+                            value={player.phone}
+                            onChange={e => updatePlayer(idx, 'phone', e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Department *</label>
+                          <select
+                            className="input-field w-full text-base"
+                            value={player.department}
+                            onChange={e => updatePlayer(idx, 'department', e.target.value)}
+                          >
+                            <option value="">Select department</option>
+                            {departments.map(department => <option key={department} value={department}>{department}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Gender *</label>
+                          <select
+                            className="input-field w-full text-base"
+                            value={player.gender}
+                            onChange={e => updatePlayer(idx, 'gender', e.target.value)}
+                          >
+                            <option value="">Select gender</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedEvent.type === 'team' && (
+                  <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <p className="text-xs text-gray-500">Main players: {mainPlayers.length}/{selectedEvent.teamSize} (choose exactly one leader)</p>
+                    <button
+                      onClick={addSubstitute}
+                      className="text-sm text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-4 py-2 rounded-lg transition-colors"
+                    >
+                      + Add Substitute
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="btn-primary mt-6 w-full py-3 text-base font-semibold rounded-xl"
+                >
+                  {loading ? 'Registering...' : 'Submit Registration'}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
