@@ -11,10 +11,13 @@ const empty = {
   status: 'draft',
   scoreOrder: 'desc',
   teamSize: 2,
+  maleRequired: 0,
+  femaleRequired: 0,
   description: '',
   rules: '',
   maxParticipants: '',
   date: '',
+  startTime: '',
   registrationDeadline: '',
   image: '',
   imageUrl: ''
@@ -80,6 +83,7 @@ export default function ManageEvents() {
       status: event.status || 'draft',
       imageUrl: event.image || '',
       date: event.date ? event.date.substring(0, 10) : '',
+      startTime: event.startTime || '',
       registrationDeadline: event.registrationDeadline ? event.registrationDeadline.substring(0, 16) : ''
     });
     setEditId(event._id);
@@ -158,6 +162,18 @@ export default function ManageEvents() {
                 <input type="number" className="input-field" value={form.teamSize} onChange={e => setForm({ ...form, teamSize: e.target.value })} />
               </div>
             )}
+            {form.type === 'team' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Males Required <span className="text-gray-400 text-xs">(optional)</span></label>
+                <input type="number" className="input-field" min="0" value={form.maleRequired} onChange={e => setForm({ ...form, maleRequired: e.target.value })} />
+              </div>
+            )}
+            {form.type === 'team' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Females Required <span className="text-gray-400 text-xs">(optional)</span></label>
+                <input type="number" className="input-field" min="0" value={form.femaleRequired} onChange={e => setForm({ ...form, femaleRequired: e.target.value })} />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Max Participants</label>
               <input type="number" className="input-field" placeholder="Leave empty for unlimited" value={form.maxParticipants} onChange={e => setForm({ ...form, maxParticipants: e.target.value })} />
@@ -165,6 +181,10 @@ export default function ManageEvents() {
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Event Date</label>
               <input type="date" className="input-field" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Start Time <span className="text-gray-400 text-xs">(optional)</span></label>
+              <input type="time" className="input-field" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Registration Deadline</label>
@@ -229,6 +249,12 @@ export default function ManageEvents() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                       {event.type === 'team' ? `Team • ${event.teamSize}` : 'Individual'}
                     </span>
+                    {event.type === 'team' && (event.maleRequired > 0 || event.femaleRequired > 0) && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {event.maleRequired > 0 && <span className="mr-2">♂ {event.maleRequired}</span>}
+                        {event.femaleRequired > 0 && <span>♀ {event.femaleRequired}</span>}
+                      </div>
+                    )}
                   </div>
                   <span className={`text-[11px] px-2 py-1 rounded-full border whitespace-nowrap ${statusMeta.className}`}>
                     {statusMeta.label}

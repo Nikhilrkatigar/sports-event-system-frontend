@@ -41,8 +41,8 @@ export default function RoundRobinTable({ matches, participants }) {
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-bold text-gray-800 mb-3">Standings</h3>
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+        <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-3">Standings</h3>
+        <div className="bg-white dark:bg-dark-card rounded-2xl shadow-sm overflow-hidden border border-gray-100 dark:border-dark-border">
           <table className="w-full text-sm">
             <thead className="bg-gradient-to-r from-blue-900 to-blue-700 text-white">
               <tr>
@@ -60,42 +60,45 @@ export default function RoundRobinTable({ matches, participants }) {
             </thead>
             <tbody>
               {sorted.map((standing, index) => (
-                <tr key={standing.name} className={`border-t border-gray-100 ${index === 0 ? 'bg-yellow-50' : index === 1 ? 'bg-gray-50' : ''}`}>
-                  <td className="px-4 py-3 font-bold">{index + 1}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-900">{standing.name}</td>
-                  <td className="px-4 py-3 text-center text-gray-600">{standing.played}</td>
-                  <td className="px-4 py-3 text-center text-green-600 font-medium">{standing.wins}</td>
-                  <td className="px-4 py-3 text-center text-yellow-600">{standing.draws}</td>
-                  <td className="px-4 py-3 text-center text-red-600">{standing.losses}</td>
-                  <td className="px-4 py-3 text-center text-gray-600">{standing.pointsFor}</td>
-                  <td className="px-4 py-3 text-center text-gray-600">{standing.pointsAgainst}</td>
-                  <td className="px-4 py-3 text-center font-medium">{standing.pointsFor - standing.pointsAgainst}</td>
-                  <td className="px-4 py-3 text-center font-bold text-blue-700 text-lg">{standing.points}</td>
+                <tr key={standing.name} className={`border-t border-gray-100 dark:border-dark-border ${
+                  index === 0 ? 'bg-yellow-50 dark:bg-yellow-900/10' :
+                  index === 1 ? 'bg-gray-50 dark:bg-gray-800/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800/20'
+                }`}>
+                  <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-300">{index + 1}</td>
+                  <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">{standing.name}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{standing.played}</td>
+                  <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{standing.wins}</td>
+                  <td className="px-4 py-3 text-center text-yellow-600 dark:text-yellow-400">{standing.draws}</td>
+                  <td className="px-4 py-3 text-center text-red-600 dark:text-red-400">{standing.losses}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{standing.pointsFor}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{standing.pointsAgainst}</td>
+                  <td className="px-4 py-3 text-center font-medium text-gray-700 dark:text-gray-300">{standing.pointsFor - standing.pointsAgainst}</td>
+                  <td className="px-4 py-3 text-center font-bold text-blue-700 dark:text-blue-400 text-lg">{standing.points}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-gray-400 mt-2">Win = 3 pts · Draw = 1 pt · Loss = 0 pts. Sorted by points, then score difference.</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Win = 3 pts · Draw = 1 pt · Loss = 0 pts. Sorted by points, then score difference.</p>
       </div>
 
       {pendingMatches.length > 0 && (
         <div>
-          <h3 className="text-lg font-bold text-gray-800 mb-3">Upcoming Matches ({pendingMatches.length})</h3>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-3">Upcoming Matches ({pendingMatches.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {pendingMatches.map((match) => (
-              <div key={match._id} className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
+              <div key={match._id} className="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border p-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Pending</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">Match #{match.matchNumber}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 font-medium">Pending</span>
                 </div>
                 <div className="text-center">
-                  <span className="font-semibold text-gray-800">{match.participant1}</span>
-                  <span className="text-gray-400 mx-2 text-sm">vs</span>
-                  <span className="font-semibold text-gray-800">{match.participant2}</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{match.participant1}</span>
+                  <span className="text-gray-400 dark:text-gray-500 mx-2 text-sm">vs</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{match.participant2}</span>
                 </div>
                 {match.scheduledTime && (
-                  <div className="mt-3 text-center text-xs text-gray-500">
+                  <div className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">
                     {new Date(match.scheduledTime).toLocaleString()}
                   </div>
                 )}
@@ -107,20 +110,20 @@ export default function RoundRobinTable({ matches, participants }) {
 
       {completedMatches.length > 0 && (
         <div>
-          <h3 className="text-lg font-bold text-gray-800 mb-3">Completed Matches ({completedMatches.length})</h3>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-3">Completed Matches ({completedMatches.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {completedMatches.map((match) => (
-              <div key={match._id} className="bg-white rounded-xl border border-green-200 p-4 bg-green-50/30">
+              <div key={match._id} className="bg-white dark:bg-dark-card rounded-xl border border-green-200 dark:border-green-900/50 p-4 bg-green-50/30 dark:bg-green-900/10">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Completed</span>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-mono">Match #{match.matchNumber}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 font-medium">Completed</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className={`font-semibold text-sm ${match.winner === match.participant1 ? 'text-green-700' : 'text-gray-600'}`}>
+                  <span className={`font-semibold text-sm ${match.winner === match.participant1 ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                     {match.participant1}
                   </span>
-                  <span className="font-bold text-gray-800 bg-gray-100 px-2 py-0.5 rounded text-sm">{match.score1} - {match.score2}</span>
-                  <span className={`font-semibold text-sm ${match.winner === match.participant2 ? 'text-green-700' : 'text-gray-600'}`}>
+                  <span className="font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-sm">{match.score1} - {match.score2}</span>
+                  <span className={`font-semibold text-sm ${match.winner === match.participant2 ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                     {match.participant2}
                   </span>
                 </div>

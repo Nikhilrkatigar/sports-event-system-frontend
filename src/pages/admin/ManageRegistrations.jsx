@@ -111,6 +111,8 @@ export default function ManageRegistrations() {
   const [filter, setFilter] = useState('');
   const [search, setSearch] = useState('');
   const [attendance, setAttendance] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
+  const [genderFilter, setGenderFilter] = useState('');
   const [expanded, setExpanded] = useState(null);
   const [editingTeam, setEditingTeam] = useState(null);
   const [editingTeamName, setEditingTeamName] = useState('');
@@ -128,6 +130,8 @@ export default function ManageRegistrations() {
       if (filter) params.append('eventId', filter);
       if (search) params.append('search', search);
       if (attendance) params.append('attendance', attendance);
+      if (deptFilter) params.append('dept', deptFilter);
+      if (genderFilter) params.append('gender', genderFilter);
       const res = await API.get(`/registrations?${params.toString()}`);
       setRegistrations(res.data);
     } finally {
@@ -139,7 +143,7 @@ export default function ManageRegistrations() {
     API.get('/events').then(r => setEvents(r.data));
   }, []);
 
-  useEffect(() => { load(); }, [filter, search, attendance]);
+  useEffect(() => { load(); }, [filter, search, attendance, deptFilter, genderFilter]);
 
   const summary = useMemo(() => {
     const totalPlayers = registrations.reduce((sum, reg) => sum + reg.players.length, 0);
@@ -314,6 +318,18 @@ export default function ManageRegistrations() {
           <option value="">All Attendance</option>
           <option value="pending">Pending Check-in</option>
           <option value="checked_in">Checked In</option>
+        </select>
+        <select className="input-field max-w-xs" value={deptFilter} onChange={e => setDeptFilter(e.target.value)}>
+          <option value="">All Departments</option>
+          {[...new Set(registrations.flatMap(reg => reg.players.map(p => p.department).filter(Boolean)))].sort().map(dept => (
+            <option key={dept} value={dept}>{dept}</option>
+          ))}
+        </select>
+        <select className="input-field max-w-xs" value={genderFilter} onChange={e => setGenderFilter(e.target.value)}>
+          <option value="">All Genders</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+          <option value="unspecified">Unspecified</option>
         </select>
       </div>
 

@@ -113,6 +113,13 @@ export default function RegisterPage() {
     });
   };
 
+  const genderComposition = useMemo(() => {
+    const mainPlayers = players.filter(player => !player.isSubstitute);
+    const maleCount = mainPlayers.filter(p => p.gender === 'male').length;
+    const femaleCount = mainPlayers.filter(p => p.gender === 'female').length;
+    return { maleCount, femaleCount };
+  }, [players]);
+
   const handleSubmit = async () => {
     if (!selectedEvent) return toast.error('Please select an event');
     if (!canRegisterForEvent(selectedEvent)) return toast.error('Registration is not open for this event');
@@ -201,16 +208,16 @@ export default function RegisterPage() {
   if (success) {
     const source = getRegistrationQrSource(success);
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
         <Navbar />
         <div className="max-w-4xl mx-auto px-4 py-12">
-          <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful</h2>
-            {success.teamId && <p className="text-blue-700 font-semibold mb-4">Team ID: {success.teamId}</p>}
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-dark-border text-center">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Registration Successful</h2>
+            {success.teamId && <p className="text-blue-700 dark:text-blue-400 font-semibold mb-4">Team ID: {success.teamId}</p>}
 
-            <div className="max-w-xs mx-auto border border-gray-200 rounded-xl p-4 mb-8">
-              <p className="text-sm font-semibold text-gray-700 mb-3">{success.teamId ? 'Team QR Code' : 'Participant QR Code'}</p>
-              <div id="registration-qr" className="flex justify-center bg-white p-3 rounded-lg border border-gray-200">
+            <div className="max-w-xs mx-auto border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-8">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{success.teamId ? 'Team QR Code' : 'Participant QR Code'}</p>
+              <div id="registration-qr" className="flex justify-center bg-white p-3 rounded-lg border border-gray-200 dark:border-gray-600">
                 {isImageDataUrl(source) ? (
                   <img src={source} alt="Registration QR code" className="h-[220px] w-[220px]" />
                 ) : (
@@ -220,7 +227,7 @@ export default function RegisterPage() {
               <button
                 type="button"
                 onClick={downloadRegistrationQr}
-                className="mt-4 w-full border border-blue-200 text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="mt-4 w-full border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
               >
                 Download QR
               </button>
@@ -228,15 +235,15 @@ export default function RegisterPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {success.players.map((player, index) => (
-                <div key={index} className="border border-gray-200 rounded-xl p-4 text-left">
-                  <p className="font-semibold text-gray-900 mb-1">
+                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-left">
+                  <p className="font-semibold text-gray-900 dark:text-white mb-1">
                     {player.name}
-                    {player.isTeamLeader && <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Leader</span>}
-                    {player.isSubstitute && <span className="ml-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Substitute</span>}
+                    {player.isTeamLeader && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">Leader</span>}
+                    {player.isSubstitute && <span className="ml-2 text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full">Substitute</span>}
                   </p>
-                  <p className="text-sm text-gray-500">{player.uucms}</p>
-                  <p className="text-sm text-gray-500">{player.department}</p>
-                  <p className="text-sm text-gray-500">Gender: {player.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : 'Unspecified'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{player.uucms}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{player.department}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Gender: {player.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : 'Unspecified'}</p>
                 </div>
               ))}
             </div>
@@ -254,23 +261,23 @@ export default function RegisterPage() {
   const isEventRegisterable = selectedEvent ? canRegisterForEvent(selectedEvent) : false;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
       <Navbar />
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Event Registration</h1>
-        <p className="text-gray-500 mb-6 text-sm sm:text-base">Fill in player details to register</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">Event Registration</h1>
+        <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm sm:text-base">Fill in player details to register</p>
 
         {pageLoading ? (
           <div className="space-y-6">
-            <div className="card">
-              <h2 className="font-semibold text-gray-800 mb-3">Step 1: Select Event</h2>
+            <div className="card dark:bg-dark-card dark:border-dark-border">
+              <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Step 1: Select Event</h2>
               <FormSkeleton />
             </div>
           </div>
         ) : (
           <>
-            <div className="card mb-6">
-              <h2 className="font-semibold text-gray-800 mb-3">Step 1: Select Event</h2>
+            <div className="card dark:bg-dark-card dark:border-dark-border mb-6">
+              <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Step 1: Select Event</h2>
               <select
                 className="input-field w-full text-base"
                 value={selectedEvent?._id || ''}
@@ -289,49 +296,68 @@ export default function RegisterPage() {
             </div>
 
             {selectedEvent && (
-              <div className="card mb-6">
+              <div className="card dark:bg-dark-card dark:border-dark-border mb-6">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <h2 className="font-semibold text-gray-900">{selectedEvent.title}</h2>
-                    <p className="text-sm text-gray-500">{selectedEvent.type === 'team' ? `${selectedEvent.teamSize} main players required` : 'Single participant event'}</p>
+                    <h2 className="font-semibold text-gray-900 dark:text-white">{selectedEvent.title}</h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{selectedEvent.type === 'team' ? `${selectedEvent.teamSize} main players required` : 'Single participant event'}</p>
                   </div>
                   <span className={`text-xs border px-2 py-1 rounded-full ${statusMeta?.className}`}>
                     {statusMeta?.label}
                   </span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
-                  <div>Remaining slots: {selectedEvent.remainingSlots == null ? 'Unlimited' : selectedEvent.remainingSlots}</div>
-                  <div>Registered: {selectedEvent.type === 'team' ? `${selectedEvent.teamCount || 0} teams` : `${selectedEvent.playerCount || 0} players`}</div>
-                  {selectedEvent.registrationDeadline && <div>Deadline: {formatEventDeadline(selectedEvent.registrationDeadline)}</div>}
-                  {selectedEvent.date && <div>Event date: {new Date(selectedEvent.date).toLocaleDateString()}</div>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-400">
+                  <div>Remaining slots: <span className="dark:text-gray-300">{selectedEvent.remainingSlots == null ? 'Unlimited' : selectedEvent.remainingSlots}</span></div>
+                  <div>Registered: <span className="dark:text-gray-300">{selectedEvent.type === 'team' ? `${selectedEvent.teamCount || 0} teams` : `${selectedEvent.playerCount || 0} players`}</span></div>
+                  {selectedEvent.registrationDeadline && <div>Deadline: <span className="dark:text-gray-300">{formatEventDeadline(selectedEvent.registrationDeadline)}</span></div>}
+                  {selectedEvent.date && <div>Event date: <span className="dark:text-gray-300">{new Date(selectedEvent.date).toLocaleDateString()}</span></div>}
                 </div>
+                {selectedEvent.type === 'team' && (selectedEvent.maleRequired > 0 || selectedEvent.femaleRequired > 0) && (
+                  <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 rounded-lg">
+                    <p className="text-sm font-medium text-purple-900 dark:text-purple-300 mb-2">Gender Composition Required:</p>
+                    <div className="flex gap-4 text-sm text-purple-700 dark:text-purple-400">
+                      {selectedEvent.maleRequired > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span>♂ Males: {genderComposition.maleCount}/{selectedEvent.maleRequired}</span>
+                          {genderComposition.maleCount >= selectedEvent.maleRequired && <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>}
+                        </div>
+                      )}
+                      {selectedEvent.femaleRequired > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span>♀ Females: {genderComposition.femaleCount}/{selectedEvent.femaleRequired}</span>
+                          {genderComposition.femaleCount >= selectedEvent.femaleRequired && <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {selectedEvent && !isEventRegisterable && (
-              <div className="card mb-6 text-center">
-                <div className="inline-flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-5 py-3 rounded-xl text-sm font-semibold">
+              <div className="card dark:bg-dark-card dark:border-dark-border mb-6 text-center">
+                <div className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 px-5 py-3 rounded-xl text-sm font-semibold">
                   Registration is not open for this event right now
                 </div>
               </div>
             )}
 
             {selectedEvent && isEventRegisterable && (
-              <div className="card">
-                <h2 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">
-                  Step 2: Player Details - <span className="text-blue-600">{selectedEvent.title}</span>
+              <div className="card dark:bg-dark-card dark:border-dark-border">
+                <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 text-sm sm:text-base">
+                  Step 2: Player Details - <span className="text-blue-600 dark:text-blue-400">{selectedEvent.title}</span>
                 </h2>
 
                 {selectedEvent.type === 'team' && (
-                  <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">Team Name *</label>
+                  <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
+                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Team Name *</label>
                     <input
-                      className="input-field w-full text-base"
+                      className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                       placeholder="Enter your team name"
                       value={teamName}
                       onChange={e => setTeamName(e.target.value)}
                     />
-                    <p className="text-xs text-gray-600 mt-1">This name will appear in the tournament bracket and reports.</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">This name will appear in the tournament bracket and reports.</p>
                   </div>
                 )}
 
@@ -339,17 +365,17 @@ export default function RegisterPage() {
                   {players.map((player, idx) => (
                     <div
                       key={idx}
-                      className={`rounded-xl border p-4 ${player.isSubstitute ? 'bg-yellow-50 border-yellow-200' : 'bg-white border-gray-200'}`}
+                      className={`rounded-xl border p-4 ${player.isSubstitute ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800/50' : 'bg-white dark:bg-dark-card border-gray-200 dark:border-dark-border'}`}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                           {player.isSubstitute
                             ? `Substitute ${idx - (selectedEvent.teamSize || 1) + 1}`
                             : `Player ${idx + 1}`}
                         </span>
                         <div className="flex items-center gap-3">
                           {selectedEvent.type === 'team' && !player.isSubstitute && (
-                            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 cursor-pointer select-none">
+                            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 cursor-pointer select-none">
                               <input
                                 type="radio"
                                 name="teamLeader"
@@ -363,7 +389,7 @@ export default function RegisterPage() {
                           {selectedEvent.type === 'team' && player.isSubstitute && (
                             <button
                               onClick={() => removePlayer(idx)}
-                              className="text-red-500 hover:text-red-700 text-xs font-medium"
+                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium"
                             >
                               Remove
                             </button>
@@ -373,27 +399,27 @@ export default function RegisterPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Full Name *</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Full Name *</label>
                           <input
-                            className="input-field w-full text-base"
+                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             placeholder="Full name"
                             value={player.name}
                             onChange={e => updatePlayer(idx, 'name', e.target.value)}
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">UUCMS No. *</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">UUCMS No. *</label>
                           <input
-                            className="input-field w-full text-base"
+                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             placeholder="U02CG23S0001"
                             value={player.uucms}
                             onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Phone *</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Phone *</label>
                           <input
-                            className="input-field w-full text-base"
+                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             type="tel"
                             placeholder="Phone number"
                             value={player.phone}
@@ -401,9 +427,9 @@ export default function RegisterPage() {
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Department *</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department *</label>
                           <select
-                            className="input-field w-full text-base"
+                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             value={player.department}
                             onChange={e => updatePlayer(idx, 'department', e.target.value)}
                           >
@@ -412,9 +438,9 @@ export default function RegisterPage() {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Gender *</label>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Gender *</label>
                           <select
-                            className="input-field w-full text-base"
+                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                             value={player.gender}
                             onChange={e => updatePlayer(idx, 'gender', e.target.value)}
                           >
@@ -430,10 +456,10 @@ export default function RegisterPage() {
 
                 {selectedEvent.type === 'team' && (
                   <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <p className="text-xs text-gray-500">Main players: {mainPlayers.length}/{selectedEvent.teamSize} (choose exactly one leader)</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Main players: {mainPlayers.length}/{selectedEvent.teamSize} (choose exactly one leader)</p>
                     <button
                       onClick={addSubstitute}
-                      className="text-sm text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-4 py-2 rounded-lg transition-colors"
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-800/50 hover:border-blue-400 dark:hover:border-blue-500 px-4 py-2 rounded-lg transition-colors"
                     >
                       + Add Substitute
                     </button>

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { getAdminHomeByRole, hasPermission } from './utils/roles';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import { setConfirmDialogRef } from './hooks/useConfirm';
@@ -14,6 +15,7 @@ import RegisterPage from './pages/public/RegisterPage';
 import LeaderboardPage from './pages/public/LeaderboardPage';
 import TournamentPage from './pages/public/TournamentPage';
 import TournamentsPage from './pages/public/TournamentsPage';
+import TimelinePage from './pages/public/TimelinePage';
 
 // Admin pages
 import LoginPage from './pages/admin/LoginPage';
@@ -29,6 +31,7 @@ import AuditLogs from './pages/admin/AuditLogs';
 import QRScanner from './pages/admin/QRScanner';
 import ManageUsers from './pages/admin/ManageUsers';
 import ManageTournaments from './pages/admin/ManageTournaments';
+import ManageTimeline from './pages/admin/ManageTimeline';
 
 const ProtectedRoute = ({ children }) => {
   const { admin, loading } = useAuth();
@@ -94,48 +97,52 @@ export default function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
-        <ConfirmationDialog
-          isOpen={dialogState.isOpen}
-          title={dialogState.title}
-          message={dialogState.message}
-          confirmText={dialogState.confirmText}
-          cancelText={dialogState.cancelText}
-          isDangerous={dialogState.isDangerous}
-          isLoading={dialogState.isLoading}
-          onConfirm={handleDialogConfirm}
-          onCancel={handleDialogCancel}
-        />
-        <Routes>
-          {/* Public */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route path="/events/:id" element={<EventDetailPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/register/:eventId" element={<RegisterPage />} />
-          <Route path="/leaderboard" element={<LeaderboardPage />} />
-          <Route path="/tournaments" element={<TournamentsPage />} />
-          <Route path="/tournaments/:eventId" element={<TournamentPage />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
+          <ConfirmationDialog
+            isOpen={dialogState.isOpen}
+            title={dialogState.title}
+            message={dialogState.message}
+            confirmText={dialogState.confirmText}
+            cancelText={dialogState.cancelText}
+            isDangerous={dialogState.isDangerous}
+            isLoading={dialogState.isLoading}
+            onConfirm={handleDialogConfirm}
+            onCancel={handleDialogCancel}
+          />
+          <Routes>
+            {/* Public */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/events" element={<EventsPage />} />
+            <Route path="/events/:id" element={<EventDetailPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/register/:eventId" element={<RegisterPage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/tournaments" element={<TournamentsPage />} />
+            <Route path="/tournaments/:eventId" element={<TournamentPage />} />
+            <Route path="/timeline" element={<TimelinePage />} />
 
-          {/* Admin */}
-          <Route path="/admin/login" element={<LoginPage />} />
-          <Route path="/admin/setup" element={<SetupPage />} />
-          <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-            <Route index element={<PermissionRoute permission="view_dashboard"><Dashboard /></PermissionRoute>} />
-            <Route path="events" element={<PermissionRoute permission="manage_events"><ManageEvents /></PermissionRoute>} />
-            <Route path="registrations" element={<PermissionRoute permission="view_registrations"><ManageRegistrations /></PermissionRoute>} />
-            <Route path="leaderboard" element={<PermissionRoute permission="manage_leaderboard"><ManageLeaderboard /></PermissionRoute>} />
-            <Route path="gallery" element={<PermissionRoute permission="manage_gallery"><ManageGallery /></PermissionRoute>} />
-            <Route path="settings" element={<PermissionRoute permission="manage_settings"><SiteSettings /></PermissionRoute>} />
-            <Route path="audit" element={<PermissionRoute permission="view_audit"><AuditLogs /></PermissionRoute>} />
-            <Route path="users" element={<FullAccessRoute><ManageUsers /></FullAccessRoute>} />
-            <Route path="tournaments" element={<PermissionRoute permission="manage_tournaments"><ManageTournaments /></PermissionRoute>} />
-            <Route path="scanner" element={<PermissionRoute permission="check_in"><QRScanner /></PermissionRoute>} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            {/* Admin */}
+            <Route path="/admin/login" element={<LoginPage />} />
+            <Route path="/admin/setup" element={<SetupPage />} />
+            <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route index element={<PermissionRoute permission="view_dashboard"><Dashboard /></PermissionRoute>} />
+              <Route path="events" element={<PermissionRoute permission="manage_events"><ManageEvents /></PermissionRoute>} />
+              <Route path="registrations" element={<PermissionRoute permission="view_registrations"><ManageRegistrations /></PermissionRoute>} />
+              <Route path="leaderboard" element={<PermissionRoute permission="manage_leaderboard"><ManageLeaderboard /></PermissionRoute>} />
+              <Route path="gallery" element={<PermissionRoute permission="manage_gallery"><ManageGallery /></PermissionRoute>} />
+              <Route path="settings" element={<PermissionRoute permission="manage_settings"><SiteSettings /></PermissionRoute>} />
+              <Route path="audit" element={<PermissionRoute permission="view_audit"><AuditLogs /></PermissionRoute>} />
+              <Route path="users" element={<FullAccessRoute><ManageUsers /></FullAccessRoute>} />
+              <Route path="tournaments" element={<PermissionRoute permission="manage_tournaments"><ManageTournaments /></PermissionRoute>} />
+              <Route path="timeline" element={<PermissionRoute permission="manage_events"><ManageTimeline /></PermissionRoute>} />
+              <Route path="scanner" element={<PermissionRoute permission="check_in"><QRScanner /></PermissionRoute>} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

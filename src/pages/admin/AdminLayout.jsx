@@ -14,7 +14,8 @@ const navItems = [
   { to: '/admin/settings', label: 'Settings', permission: 'manage_settings' },
   { to: '/admin/audit', label: 'Audit Logs', permission: 'view_audit' },
   { to: '/admin/users', label: 'Users', permission: 'manage_users' },
-  { to: '/admin/tournaments', label: 'Tournaments', permission: 'manage_tournaments' }
+  { to: '/admin/tournaments', label: 'Tournaments', permission: 'manage_tournaments' },
+  { to: '/admin/timeline', label: '🗓️ Timeline', permission: 'manage_events' }
 ];
 
 export default function AdminLayout() {
