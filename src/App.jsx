@@ -32,6 +32,7 @@ import QRScanner from './pages/admin/QRScanner';
 import ManageUsers from './pages/admin/ManageUsers';
 import ManageTournaments from './pages/admin/ManageTournaments';
 import ManageTimeline from './pages/admin/ManageTimeline';
+import ManageCRM from './pages/admin/ManageCRM';
 
 const ProtectedRoute = ({ children }) => {
   const { admin, loading } = useAuth();
@@ -139,6 +140,7 @@ export default function App() {
               <Route path="tournaments" element={<PermissionRoute permission="manage_tournaments"><ManageTournaments /></PermissionRoute>} />
               <Route path="timeline" element={<PermissionRoute permission="manage_events"><ManageTimeline /></PermissionRoute>} />
               <Route path="scanner" element={<PermissionRoute permission="check_in"><QRScanner /></PermissionRoute>} />
+              <Route path="messages" element={<PermissionRoute permission="view_registrations"><ManageCRM /></PermissionRoute>} />
             </Route>
           </Routes>
         </BrowserRouter>

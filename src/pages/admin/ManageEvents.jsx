@@ -13,6 +13,7 @@ const empty = {
   teamSize: 2,
   maleRequired: 0,
   femaleRequired: 0,
+  allowedDepartments: [],
   description: '',
   rules: '',
   maxParticipants: '',
@@ -25,6 +26,7 @@ const empty = {
 
 export default function ManageEvents() {
   const [events, setEvents] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [file, setFile] = useState(null);
@@ -37,8 +39,12 @@ export default function ManageEvents() {
   const load = async () => {
     setPageLoading(true);
     try {
-      const r = await API.get('/events');
-      setEvents(r.data);
+      const [eventsRes, settingsRes] = await Promise.all([
+        API.get('/events'),
+        API.get('/settings')
+      ]);
+      setEvents(eventsRes.data);
+      setDepartments(settingsRes.data?.departments || []);
     } finally {
       setPageLoading(false);
     }
@@ -81,6 +87,7 @@ export default function ManageEvents() {
       ...event,
       scoreOrder: event.scoreOrder || 'desc',
       status: event.status || 'draft',
+      allowedDepartments: event.allowedDepartments || [],
       imageUrl: event.image || '',
       date: event.date ? event.date.substring(0, 10) : '',
       startTime: event.startTime || '',
@@ -200,6 +207,32 @@ export default function ManageEvents() {
             </div>
 
             <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-2">Allowed Departments <span className="text-gray-400 text-xs">(Leave empty to allow all departments)</span></label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {departments.map((dept) => (
+                  <label key={dept} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.allowedDepartments.includes(dept)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setForm({ ...form, allowedDepartments: [...form.allowedDepartments, dept] });
+                        } else {
+                          setForm({ ...form, allowedDepartments: form.allowedDepartments.filter(d => d !== dept) });
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-xs text-gray-600">{dept}</span>
+                  </label>
+                ))}
+              </div>
+              {form.allowedDepartments.length > 0 && (
+                <p className="text-xs text-blue-600 mt-2">🔒 Restricted to: {form.allowedDepartments.join(', ')}</p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-2">Event Image</label>
               <div className="flex gap-4 mb-2">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -253,6 +286,11 @@ export default function ManageEvents() {
                       <div className="text-xs text-gray-500 mt-1">
                         {event.maleRequired > 0 && <span className="mr-2">♂ {event.maleRequired}</span>}
                         {event.femaleRequired > 0 && <span>♀ {event.femaleRequired}</span>}
+                      </div>
+                    )}
+                    {event.allowedDepartments && event.allowedDepartments.length > 0 && (
+                      <div className="text-xs text-blue-600 mt-1">
+                        🔒 {event.allowedDepartments.join(', ')}
                       </div>
                     )}
                   </div>

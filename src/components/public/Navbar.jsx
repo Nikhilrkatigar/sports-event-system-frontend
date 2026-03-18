@@ -24,16 +24,6 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50">
-      {settings.announcementActive && settings.announcementText && (
-        <div className="bg-red-600 text-white overflow-hidden py-1.5 shadow-md border-b border-red-700">
-          <div className="w-full whitespace-nowrap animate-marquee flex items-center font-semibold text-sm">
-            <span className="mx-4 text-red-200">●</span> {settings.announcementText}
-            <span className="mx-4 text-red-200">●</span> {settings.announcementText}
-            <span className="mx-4 text-red-200">●</span> {settings.announcementText}
-            <span className="mx-4 text-red-200">●</span> {settings.announcementText}
-          </div>
-        </div>
-      )}
       <nav className="bg-gradient-to-r from-blue-900 to-blue-700 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3">

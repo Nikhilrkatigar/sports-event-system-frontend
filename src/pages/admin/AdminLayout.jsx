@@ -11,6 +11,7 @@ const navItems = [
   { to: '/admin/leaderboard', label: 'Leaderboard', permission: 'manage_leaderboard' },
   { to: '/admin/gallery', label: 'Gallery', permission: 'manage_gallery' },
   { to: '/admin/scanner', label: 'QR Scanner', permission: 'check_in' },
+  { to: '/admin/messages', label: '💬 Messages (CRM)', permission: 'view_registrations' },
   { to: '/admin/settings', label: 'Settings', permission: 'manage_settings' },
   { to: '/admin/audit', label: 'Audit Logs', permission: 'view_audit' },
   { to: '/admin/users', label: 'Users', permission: 'manage_users' },

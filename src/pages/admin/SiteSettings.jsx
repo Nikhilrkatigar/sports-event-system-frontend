@@ -6,8 +6,7 @@ const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tec
 
 export default function SiteSettings() {
   const [form, setForm] = useState({ 
-    collegeName: '', eventName: '', venue: '', description: '', homeNotice: '', eventDate: '', collegeLogo: '', 
-    announcementText: '', announcementActive: false,
+    collegeName: '', eventName: '', venue: '', description: '', announcement: '', eventDate: '', collegeLogo: '', 
     departments: DEFAULT_DEPARTMENTS.join('\n') 
   });
   const [file, setFile] = useState(null);
@@ -22,9 +21,7 @@ export default function SiteSettings() {
         ...d,
         eventDate: d.eventDate ? d.eventDate.substring(0, 10) : '',
         collegeLogo: d.collegeLogo || '',
-        homeNotice: d.homeNotice || '',
-        announcementText: d.announcementText || '',
-        announcementActive: d.announcementActive || false,
+        announcement: d.announcement || '',
         departments: departments.join('\n')
       });
     });
@@ -76,36 +73,9 @@ export default function SiteSettings() {
             <textarea className="input-field" rows="3" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Home Page Notice <span className="text-gray-500 text-xs">(optional)</span></label>
-            <textarea className="input-field" rows="3" placeholder="Add an important notice or announcement to appear above Sports Events on the home page..." value={form.homeNotice} onChange={e => setForm({ ...form, homeNotice: e.target.value })} />
-            <p className="text-xs text-gray-500 mt-1">This notice will be displayed prominently above the Sports Events section on the home page.</p>
-          </div>
-
-          <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-            <h3 className="font-semibold text-red-800 mb-3 flex items-center gap-2">
-              <span className="animate-pulse">🔴</span> Live Broadcast Announcement
-            </h3>
-            <div className="space-y-4">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="w-5 h-5 accent-red-600 rounded cursor-pointer"
-                  checked={form.announcementActive}
-                  onChange={e => setForm({ ...form, announcementActive: e.target.checked })}
-                />
-                <span className="text-sm font-medium text-red-900">Enable Live Scrolling Announcement</span>
-              </label>
-              <div>
-                <input 
-                  type="text" 
-                  className="input-field border-red-200 focus:ring-red-500 block w-full" 
-                  placeholder="e.g. 📢 UPDATE: 100m sprint finals moved to 2:00 PM!" 
-                  value={form.announcementText} 
-                  onChange={e => setForm({ ...form, announcementText: e.target.value })} 
-                />
-                <p className="text-xs text-red-600 mt-1">Will override the top navbar globally if active.</p>
-              </div>
-            </div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Announcement <span className="text-gray-500 text-xs">(optional)</span></label>
+            <textarea className="input-field" rows="3" placeholder="Add an announcement to display above Sports Events on the home page..." value={form.announcement} onChange={e => setForm({ ...form, announcement: e.target.value })} />
+            <p className="text-xs text-gray-500 mt-1">This will be displayed prominently above the Sports Events section on the home page.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Departments (one per line)</label>

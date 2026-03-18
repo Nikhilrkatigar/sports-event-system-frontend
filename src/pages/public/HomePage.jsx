@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/public/Navbar';
-import LiveMatchesWidget from '../../components/public/LiveMatchesWidget';
 import API from '../../utils/api';
 import { CardSkeleton, ImageSkeleton, TableRowSkeleton } from '../../components/Skeletons';
 import { canRegisterForEvent, getEventStatusMeta, PUBLIC_EVENT_STATUSES } from '../../utils/events';
@@ -13,6 +12,7 @@ export default function HomePage() {
   const [events, setEvents] = useState([]);
   const [gallery, setGallery] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const timelineEvents = events
@@ -29,9 +29,10 @@ export default function HomePage() {
       API.get('/settings').catch(() => ({})),
       API.get('/events').catch(() => ({ data: [] })),
       API.get('/gallery').catch(() => ({ data: [] })),
-      API.get('/leaderboard').catch(() => ({ data: [] }))
+      API.get('/leaderboard').catch(() => ({ data: [] })),
+      API.get('/messages').catch(() => ({ data: [] }))
     ])
-      .then(([settingsRes, eventsRes, galleryRes, leaderboardRes]) => {
+      .then(([settingsRes, eventsRes, galleryRes, leaderboardRes, messagesRes]) => {
         setSettings(settingsRes.data || {});
         setEvents(
           toArray(eventsRes?.data)
@@ -40,6 +41,7 @@ export default function HomePage() {
         );
         setGallery(toArray(galleryRes?.data).slice(0, 6));
         setLeaderboard(toArray(leaderboardRes?.data).slice(0, 5));
+        setAnnouncements(toArray(messagesRes?.data).slice(0, 10));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -47,7 +49,6 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
       <Navbar />
-      <LiveMatchesWidget />
 
       <section className="bg-gradient-to-br from-blue-900 via-sky-700 to-cyan-700 text-white py-24 px-4 animate-fade-in">
         <div className="max-w-4xl mx-auto text-center">
@@ -65,14 +66,25 @@ export default function HomePage() {
       </section>
 
       <section className="py-16 px-4 max-w-7xl mx-auto animate-fade-in">
-        {settings.homeNotice && (
-          <div className="mb-10 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-orange-500 rounded-lg shadow-md animate-slide-down">
-            <div className="flex gap-3">
-              <div className="text-2xl">📢</div>
-              <div>
-                <h3 className="font-semibold text-orange-900 mb-1">Important Notice</h3>
-                <p className="text-orange-800 whitespace-pre-wrap text-sm">{settings.homeNotice}</p>
-              </div>
+        {announcements.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6 animate-slide-down">📢 Latest Announcements</h2>
+            <div className="space-y-3">
+              {announcements.map((ann) => (
+                <div key={ann._id} className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border-l-4 border-blue-500 rounded-lg shadow-md hover:shadow-lg transition-all dark:border-blue-400">
+                  <p className="text-gray-900 dark:text-white whitespace-pre-wrap text-sm leading-relaxed break-words">
+                    {ann.message}
+                  </p>
+                  <div className="flex items-center justify-between mt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <span> {new Date(ann.createdAt).toLocaleString('en-IN', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
