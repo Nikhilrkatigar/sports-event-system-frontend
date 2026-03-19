@@ -118,6 +118,7 @@ export default function ManageRegistrations() {
   const [editingTeamName, setEditingTeamName] = useState('');
   const [downloadEvent, setDownloadEvent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(null);
   const { confirm } = useConfirm();
 
   const canEditRegistration = hasPermission(admin?.role, 'manage_registrations');
@@ -148,11 +149,15 @@ export default function ManageRegistrations() {
   const summary = useMemo(() => {
     const totalPlayers = registrations.reduce((sum, reg) => sum + reg.players.length, 0);
     const checkedInPlayers = registrations.reduce((sum, reg) => sum + reg.players.filter((player) => player.checkInStatus).length, 0);
+    const paidRegistrations = registrations.filter(reg => reg.paymentStatus === 'paid').length;
+    const pendingPayments = registrations.filter(reg => reg.paymentStatus === 'pending').length;
     return {
       registrations: registrations.length,
       players: totalPlayers,
       checkedIn: checkedInPlayers,
-      pending: Math.max(totalPlayers - checkedInPlayers, 0)
+      pending: Math.max(totalPlayers - checkedInPlayers, 0),
+      paid: paidRegistrations,
+      pendingPayment: pendingPayments
     };
   }, [registrations]);
 
@@ -265,6 +270,44 @@ export default function ManageRegistrations() {
     }
   };
 
+  const verifyPayment = async (registrationId, isVerifiying) => {
+    const endpoint = isVerifiying ? `verify-payment` : `unverify-payment`;
+    const action = isVerifiying ? 'mark as paid' : 'reset payment status';
+    const confirmed = await confirm({
+      title: isVerifiying ? 'Verify Payment' : 'Reset Payment Status',
+      message: `Are you sure you want to ${action} for this registration?`,
+      confirmText: isVerifiying ? 'Verify' : 'Reset',
+      cancelText: 'Cancel',
+    });
+    if (!confirmed) return;
+    
+    try {
+      setVerifyingPayment(registrationId);
+      const res = await API.patch(`/registrations/${registrationId}/${endpoint}`);
+      setRegistrations(prev => prev.map(reg =>
+        reg._id === registrationId ? res.data.data : reg
+      ));
+      toast.success(isVerifiying ? 'Payment verified successfully' : 'Payment status reset');
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Failed to ${action}`);
+    } finally {
+      setVerifyingPayment(null);
+    }
+  };
+
+  const getPaymentStatusBadge = (status) => {
+    switch (status) {
+      case 'paid':
+        return <span className="text-xs bg-green-100 text-green-700 px-2.5 py-1 rounded-full font-medium">✓ Paid</span>;
+      case 'pending':
+        return <span className="text-xs bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full font-medium">↻ Pending</span>;
+      case 'free':
+        return <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">Free</span>;
+      default:
+        return <span className="text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full font-medium">–</span>;
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -289,8 +332,16 @@ export default function ManageRegistrations() {
           <div className="text-2xl font-bold text-green-700">{summary.checkedIn}</div>
         </div>
         <div className="card">
-          <div className="text-sm text-gray-500">Pending</div>
+          <div className="text-sm text-gray-500">Pending Check-in</div>
           <div className="text-2xl font-bold text-orange-700">{summary.pending}</div>
+        </div>
+        <div className="card">
+          <div className="text-sm text-gray-500">Paid</div>
+          <div className="text-2xl font-bold text-green-700">{summary.paid}</div>
+        </div>
+        <div className="card">
+          <div className="text-sm text-gray-500">Pending Payment</div>
+          <div className="text-2xl font-bold text-yellow-700">{summary.pendingPayment}</div>
         </div>
       </div>
 
@@ -345,6 +396,7 @@ export default function ManageRegistrations() {
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Team Name</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Players</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Date</th>
+                <th className="px-4 py-3 text-left text-gray-600 font-medium">Payment</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Check-in</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Actions</th>
               </tr>
@@ -360,7 +412,7 @@ export default function ManageRegistrations() {
                 </>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
                     No registrations found
                   </td>
                 </tr>
@@ -418,6 +470,34 @@ export default function ManageRegistrations() {
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{new Date(reg.createdAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {getPaymentStatusBadge(reg.paymentStatus)}
+                          {reg.paymentScreenshot && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">
+                              📸 Screenshot
+                            </span>
+                          )}
+                          {reg.paymentStatus === 'pending' && canEditRegistration && (
+                            <button
+                              onClick={() => verifyPayment(reg._id, true)}
+                              disabled={verifyingPayment === reg._id}
+                              className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 disabled:opacity-50"
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                          {reg.paymentStatus === 'paid' && canEditRegistration && (
+                            <button
+                              onClick={() => verifyPayment(reg._id, false)}
+                              disabled={verifyingPayment === reg._id}
+                              className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded hover:bg-gray-300 disabled:opacity-50"
+                            >
+                              Reset
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
                         <span className="text-xs">
                           {reg.players.filter(player => player.checkInStatus).length}/{reg.players.length} checked in
                         </span>
@@ -432,7 +512,7 @@ export default function ManageRegistrations() {
                     </tr>
                     {expanded === reg._id && (
                       <tr className="bg-blue-50">
-                        <td colSpan="7" className="px-6 py-3">
+                        <td colSpan="8" className="px-6 py-3">
                           <table className="w-full text-xs">
                             <thead>
                               <tr className="text-gray-600">

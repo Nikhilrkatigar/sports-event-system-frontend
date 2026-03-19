@@ -132,6 +132,14 @@ export default function HomePage() {
                     </div>
                     <h3 className="font-bold text-gray-900 dark:text-white mt-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{event.title}</h3>
                     <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 line-clamp-2">{event.description}</p>
+                    {event.allowedGenders && event.allowedGenders.length > 0 && event.allowedGenders.length < 2 && (
+                      <div className="mt-2 inline-block text-xs font-semibold px-2 py-1 rounded-full" style={{
+                        backgroundColor: event.allowedGenders[0] === 'female' ? '#fce7f3' : '#dbeafe',
+                        color: event.allowedGenders[0] === 'female' ? '#be185d' : '#1e40af'
+                      }}>
+                        {event.allowedGenders[0] === 'female' ? '♀ Females Only' : '♂ Males Only'}
+                      </div>
+                    )}
                     <div className="mt-3 space-y-1 text-xs text-gray-400 dark:text-gray-500">
                       {event.date && <div>{new Date(event.date).toLocaleDateString()}</div>}
                       {event.remainingSlots != null && <div>{event.remainingSlots} slots left</div>}

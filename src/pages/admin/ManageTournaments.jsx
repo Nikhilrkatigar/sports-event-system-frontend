@@ -7,6 +7,7 @@ export default function ManageTournaments() {
   const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState('');
   const [format, setFormat] = useState('single_elimination');
+  const [genderFilter, setGenderFilter] = useState('all');
   const [tournament, setTournament] = useState(null);
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -59,7 +60,11 @@ export default function ManageTournaments() {
     if (!selectedEventId) return toast.error('Select an event first');
     setGenerating(true);
     try {
-      const r = await API.post('/tournaments/generate', { eventId: selectedEventId, format });
+      const r = await API.post('/tournaments/generate', { 
+        eventId: selectedEventId, 
+        format,
+        genderFilter: genderFilter === 'all' ? null : genderFilter
+      });
       setTournament(r.data.tournament);
       setMatches(r.data.matches);
       toast.success('Bracket generated');
@@ -153,9 +158,15 @@ export default function ManageTournaments() {
               onChange={e => setSelectedEventId(e.target.value)}
             >
               <option value="">Choose an event</option>
-              {events.map(event => (
-                <option key={event._id} value={event._id}>{event.title} ({event.type})</option>
-              ))}
+              {events.map(event => {
+                let genderLabel = '';
+                if (event.allowedGenders && event.allowedGenders.length === 1) {
+                  genderLabel = event.allowedGenders[0] === 'female' ? ' [♀ Females Only]' : ' [♂ Males Only]';
+                }
+                return (
+                  <option key={event._id} value={event._id}>{event.title} ({event.type}){genderLabel}</option>
+                );
+              })}
             </select>
           </div>
 
@@ -173,6 +184,19 @@ export default function ManageTournaments() {
                     <span className="text-sm">Round Robin</span>
                   </label>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Participant Filter</label>
+                <select 
+                  className="input-field w-full" 
+                  value={genderFilter} 
+                  onChange={e => setGenderFilter(e.target.value)}
+                >
+                  <option value="all">All (Males & Females)</option>
+                  <option value="male">Males Only</option>
+                  <option value="female">Females Only</option>
+                </select>
               </div>
 
               <div>
@@ -205,6 +229,19 @@ export default function ManageTournaments() {
           )}
         </div>
       </div>
+
+      {selectedEventId && !tournament && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            <strong>ℹ️ Gender Filtering:</strong> The bracket will automatically include only registrations that match the event's gender requirements. 
+            {events.find(e => e._id === selectedEventId)?.allowedGenders?.length === 1 ? (
+              <span> This event is restricted to {events.find(e => e._id === selectedEventId)?.allowedGenders[0]}s only.</span>
+            ) : (
+              <span> This event is open to all genders.</span>
+            )}
+          </p>
+        </div>
+      )}
 
       {loading && (
         <div className="text-center py-12 text-gray-400">

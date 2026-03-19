@@ -13,7 +13,11 @@ const empty = {
   teamSize: 2,
   maleRequired: 0,
   femaleRequired: 0,
+  allowedGenders: ['male', 'female'],
   allowedDepartments: [],
+  registrationFee: 0,
+  upiPaymentLink: '',
+  paymentQRCode: '',
   description: '',
   rules: '',
   maxParticipants: '',
@@ -30,6 +34,7 @@ export default function ManageEvents() {
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [file, setFile] = useState(null);
+  const [qrCodeFile, setQrCodeFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -58,10 +63,19 @@ export default function ManageEvents() {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
-        if (v !== '' && k !== 'imageUrl') fd.append(k, v);
+        if (v !== '' && k !== 'imageUrl' && k !== 'paymentQRCode') {
+          // Handle arrays by converting to JSON
+          if (Array.isArray(v)) {
+            fd.append(k, JSON.stringify(v));
+          } else {
+            fd.append(k, v);
+          }
+        }
       });
       if (imageMode === 'upload' && file) fd.append('image', file);
       else if (imageMode === 'url' && form.imageUrl) fd.set('image', form.imageUrl);
+      
+      if (qrCodeFile) fd.append('paymentQRCode', qrCodeFile);
 
       if (editId) {
         await API.put(`/events/${editId}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -73,6 +87,7 @@ export default function ManageEvents() {
       setForm(empty);
       setEditId(null);
       setFile(null);
+      setQrCodeFile(null);
       setShowForm(false);
       load();
     } catch (err) {
@@ -87,7 +102,11 @@ export default function ManageEvents() {
       ...event,
       scoreOrder: event.scoreOrder || 'desc',
       status: event.status || 'draft',
+      allowedGenders: event.allowedGenders || ['male', 'female'],
       allowedDepartments: event.allowedDepartments || [],
+      registrationFee: event.registrationFee || 0,
+      upiPaymentLink: event.upiPaymentLink || '',
+      paymentQRCode: event.paymentQRCode || '',
       imageUrl: event.image || '',
       date: event.date ? event.date.substring(0, 10) : '',
       startTime: event.startTime || '',
@@ -207,6 +226,53 @@ export default function ManageEvents() {
             </div>
 
             <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-2">Gender Participation <span className="text-gray-400 text-xs">(Who can participate?)</span></label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <label className="flex items-center gap-2 cursor-pointer p-2 border border-gray-200 rounded-lg hover:bg-blue-50">
+                  <input
+                    type="checkbox"
+                    checked={form.allowedGenders.includes('male')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setForm({ ...form, allowedGenders: [...form.allowedGenders, 'male'] });
+                      } else {
+                        setForm({ ...form, allowedGenders: form.allowedGenders.filter(g => g !== 'male') });
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">♂ Males</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer p-2 border border-gray-200 rounded-lg hover:bg-pink-50">
+                  <input
+                    type="checkbox"
+                    checked={form.allowedGenders.includes('female')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setForm({ ...form, allowedGenders: [...form.allowedGenders, 'female'] });
+                      } else {
+                        setForm({ ...form, allowedGenders: form.allowedGenders.filter(g => g !== 'female') });
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700 font-medium">♀ Females</span>
+                </label>
+              </div>
+              {form.allowedGenders.length === 0 && (
+                <p className="text-xs text-red-600 mt-2">⚠️ At least one gender must be selected</p>
+              )}
+              {form.allowedGenders.length === 1 && (
+                <p className="text-xs text-blue-600 mt-2">
+                  🔒 {form.allowedGenders[0] === 'male' ? 'Male-only' : 'Female-only'} event
+                </p>
+              )}
+              {form.allowedGenders.length === 2 && (
+                <p className="text-xs text-green-600 mt-2">✓ Open to all genders</p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-600 mb-2">Allowed Departments <span className="text-gray-400 text-xs">(Leave empty to allow all departments)</span></label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                 {departments.map((dept) => (
@@ -248,6 +314,23 @@ export default function ManageEvents() {
                 <input type="file" accept="image/*" className="input-field" onChange={e => setFile(e.target.files[0])} />
               )}
             </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Registration Fee <span className="text-gray-400 text-xs">(optional, in ₹)</span></label>
+              <input type="number" className="input-field" min="0" placeholder="Leave empty or 0 for free registration" value={form.registrationFee} onChange={e => setForm({ ...form, registrationFee: e.target.value })} />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">UPI Payment Link <span className="text-gray-400 text-xs">(if fee required)</span></label>
+              <input type="url" className="input-field" placeholder="e.g. upi://pay?pa=..." value={form.upiPaymentLink} onChange={e => setForm({ ...form, upiPaymentLink: e.target.value })} />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Payment QR Code <span className="text-gray-400 text-xs">(optional, alternative to link)</span></label>
+              <input type="file" accept="image/*" className="input-field" onChange={e => setQrCodeFile(e.target.files[0])} />
+              {qrCodeFile && <p className="text-xs text-blue-600 mt-1">✓ File selected: {qrCodeFile.name}</p>}
+              {form.paymentQRCode && !qrCodeFile && <p className="text-xs text-green-600 mt-1">✓ QR code already uploaded</p>}
+            </div>
           </div>
 
           <div className="flex gap-3 mt-4">
@@ -288,6 +371,14 @@ export default function ManageEvents() {
                         {event.femaleRequired > 0 && <span>♀ {event.femaleRequired}</span>}
                       </div>
                     )}
+                    {event.allowedGenders && event.allowedGenders.length > 0 && event.allowedGenders.length < 2 && (
+                      <div className="text-xs font-semibold mt-1 px-2 py-0.5 rounded-full" style={{
+                        backgroundColor: event.allowedGenders[0] === 'female' ? '#fce7f3' : '#dbeafe',
+                        color: event.allowedGenders[0] === 'female' ? '#be185d' : '#1e40af'
+                      }}>
+                        {event.allowedGenders[0] === 'female' ? '♀ Females Only' : '♂ Males Only'}
+                      </div>
+                    )}
                     {event.allowedDepartments && event.allowedDepartments.length > 0 && (
                       <div className="text-xs text-blue-600 mt-1">
                         🔒 {event.allowedDepartments.join(', ')}
@@ -309,6 +400,15 @@ export default function ManageEvents() {
                   <span>{event.remainingSlots == null ? 'Unlimited slots' : `${event.remainingSlots} slots left`}</span>
                   {event.type === 'team' && event.availableTeams != null && <span>{event.availableTeams} teams left</span>}
                 </div>
+                {event.registrationFee > 0 && (
+                  <div className="mb-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-xs text-blue-800 font-semibold">💳 Registration Fee: ₹{event.registrationFee}</p>
+                    <div className="text-xs text-blue-700 mt-1 space-y-0.5">
+                      {event.upiPaymentLink && <p>🔗 UPI Link configured</p>}
+                      {event.paymentQRCode && <p>📱 QR Code uploaded</p>}
+                    </div>
+                  </div>
+                )}
                 {(event.status === 'published' || event.status === 'open' || event.status === 'full') && (
                   <button
                     onClick={() => toggleRegistration(event)}
