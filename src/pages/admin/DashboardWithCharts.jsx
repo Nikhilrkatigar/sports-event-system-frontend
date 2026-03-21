@@ -1,41 +1,58 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import {
+  BarChart, Bar, PieChart, Pie,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell
+} from 'recharts';
 import API from '../../utils/api';
-import { ListItemSkeleton } from '../../components/Skeletons';
 import { useAuth } from '../../context/AuthContext';
 import { hasPermission } from '../../utils/roles';
+import {
+  CalendarDays, Users, CheckCircle2, CreditCard,
+  Plus, Eye, ScanLine, Trophy, LayoutDashboard,
+  ArrowRight, TrendingUp
+} from 'lucide-react';
 
-const StatCard = ({ icon, label, value, color, loading }) => (
-  <div className="stat-card bg-white dark:bg-dark-card rounded-xl p-4 border border-gray-100 dark:border-dark-border hover:shadow-lg transition-all duration-300 transform hover:scale-105">
-    <div className={`inline-flex items-center justify-center text-2xl font-bold px-4 py-3 rounded-xl ${color} mb-2`}>{icon}</div>
-    <div className="flex-1">
+/* ─── Custom Tooltip ─── */
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-lg text-xs">
+      {label && <p className="font-semibold text-gray-800 mb-1">{label}</p>}
+      {payload.map((p, i) => (
+        <p key={i} className="flex items-center gap-1.5 text-gray-600">
+          <span className="w-2 h-2 rounded-full inline-block" style={{ background: p.color || p.fill }} />
+          {p.name}: <span className="font-semibold text-gray-900">{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+/* ─── Stat Card ─── */
+const StatCard = ({ icon: Icon, label, value, accent, loading }) => (
+  <div className="bg-white border border-gray-200 rounded-xl p-5 flex items-center gap-4 transition-shadow hover:shadow-md">
+    <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${accent}`}>
+      <Icon size={20} className="text-white" />
+    </div>
+    <div>
       {loading ? (
-        <div className="space-y-2">
-          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-12 animate-pulse"></div>
-          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20 animate-pulse"></div>
-        </div>
+        <>
+          <div className="h-7 w-12 bg-gray-100 rounded animate-pulse mb-1" />
+          <div className="h-3 w-20 bg-gray-100 rounded animate-pulse" />
+        </>
       ) : (
         <>
-          <div className="text-3xl font-bold text-gray-900 dark:text-white">{value ?? '-'}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
+          <p className="text-2xl font-bold text-gray-900 leading-none">{value ?? '–'}</p>
+          <p className="text-xs text-gray-500 mt-1">{label}</p>
         </>
       )}
     </div>
   </div>
 );
 
-const ChartCard = ({ title, children, loading }) => (
-  <div className="bg-white dark:bg-dark-card rounded-xl p-6 border border-gray-100 dark:border-dark-border shadow-sm hover:shadow-md transition-all duration-300">
-    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
-    {loading ? (
-      <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded animate-pulse"></div>
-    ) : (
-      children
-    )}
-  </div>
-);
-
+/* ─── Main Component ─── */
 export default function DashboardWithCharts() {
   const { admin } = useAuth();
   const [stats, setStats] = useState({});
@@ -45,228 +62,176 @@ export default function DashboardWithCharts() {
 
   useEffect(() => {
     Promise.all([
-      API.get('/registrations/stats/overview'),
-      API.get('/registrations'),
-      API.get('/events')
+      API.get('/registrations/stats/overview').catch(() => ({ data: {} })),
+      API.get('/registrations').catch(() => ({ data: [] })),
+      API.get('/events').catch(() => ({ data: [] }))
     ])
-      .then(([statsRes, regsRes, eventsRes]) => {
-        setStats(statsRes.data);
-        setRecentRegs(regsRes.data.slice(0, 5));
-        setEvents(eventsRes.data);
+      .then(([s, r, e]) => {
+        setStats(s.data || {});
+        setRecentRegs((r.data || []).slice(0, 6));
+        setEvents(e.data || []);
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  // Chart data for event registrations
-  const eventRegData = useMemo(() => {
-    return events.slice(0, 6).map(event => ({
-      name: event.title.substring(0, 12),
-      registrations: event.teamCount || event.playerCount || 0,
-      capacity: event.maxParticipants || 0
-    }));
-  }, [events]);
+  const barData = useMemo(() =>
+    events.slice(0, 6).map(e => ({
+      name: e.title.length > 14 ? e.title.slice(0, 14) + '…' : e.title,
+      regs: e.teamCount || e.playerCount || 0,
+    })), [events]);
 
-  // Chart data for payment status
-  const paymentData = useMemo(() => {
-    const paidCount = recentRegs.filter(r => r.paymentStatus === 'paid').length;
-    const pendingCount = recentRegs.filter(r => r.paymentStatus === 'pending').length;
-    const freeCount = recentRegs.filter(r => !r.eventId?.registrationFee || r.eventId.registrationFee === 0).length;
-    
-    return [
-      { name: 'Paid', value: paidCount, color: '#10b981' },
-      { name: 'Pending', value: pendingCount, color: '#f59e0b' },
-      { name: 'Free', value: freeCount, color: '#3b82f6' }
-    ].filter(item => item.value > 0);
-  }, [recentRegs]);
+  const pieData = useMemo(() => [
+    { name: 'Paid', value: recentRegs.filter(r => r.paymentStatus === 'paid').length, color: '#10b981' },
+    { name: 'Pending', value: recentRegs.filter(r => r.paymentStatus === 'pending').length, color: '#f59e0b' },
+    { name: 'Free', value: recentRegs.filter(r => !r.eventId?.registrationFee || r.eventId.registrationFee === 0).length, color: '#3b82f6' },
+  ].filter(d => d.value > 0), [recentRegs]);
 
-  // Chart data for gender composition
-  const genderData = useMemo(() => {
-    let males = 0, females = 0, unspecified = 0;
-    recentRegs.forEach(reg => {
-      (reg.players || []).forEach(player => {
-        if (player.gender === 'male') males++;
-        else if (player.gender === 'female') females++;
-        else unspecified++;
-      });
-    });
-    
-    return [
-      { name: 'Males', value: males, color: '#3b82f6' },
-      { name: 'Females', value: females, color: '#ec4899' },
-      { name: 'Unspecified', value: unspecified, color: '#6b7280' }
-    ].filter(item => item.value > 0);
-  }, [recentRegs]);
-
-  // Check-in progress data
-  const checkinProgress = useMemo(() => {
-    const total = stats.totalRegistrations || 0;
-    const checkedIn = stats.checkedIn || 0;
-    return [
-      { name: 'Checked In', value: checkedIn, fill: '#10b981' },
-      { name: 'Pending', value: total - checkedIn, fill: '#ef4444' }
-    ];
-  }, [stats]);
-
-  const quickActions = useMemo(() => ([
-    { to: '/admin/events', label: 'Add Event', short: '+ Event', permission: 'manage_events', color: 'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-800 dark:text-blue-300' },
-    { to: '/admin/registrations', label: 'View Registrations', short: 'Regs', permission: 'view_registrations', color: 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 text-green-800 dark:text-green-300' },
-    { to: '/admin/scanner', label: 'QR Scanner', short: 'Scan', permission: 'check_in', color: 'bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-800 dark:text-purple-300' },
-    { to: '/admin/leaderboard', label: 'Update Scores', short: 'Scores', permission: 'manage_leaderboard', color: 'bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300' },
-    { to: '/admin/tournaments', label: 'Manage Brackets', short: 'Bracket', permission: 'manage_tournaments', color: 'bg-cyan-50 dark:bg-cyan-900/20 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 text-cyan-800 dark:text-cyan-300' }
-  ].filter((action) => hasPermission(admin?.role, action.permission))), [admin?.role]);
+  const quickActions = useMemo(() => [
+    { to: '/admin/events', label: 'New Event', icon: Plus, permission: 'manage_events' },
+    { to: '/admin/registrations', label: 'Registrations', icon: Eye, permission: 'view_registrations' },
+    { to: '/admin/scanner', label: 'QR Scanner', icon: ScanLine, permission: 'check_in' },
+    { to: '/admin/leaderboard', label: 'Leaderboard', icon: Trophy, permission: 'manage_leaderboard' },
+    { to: '/admin/tournaments', label: 'Brackets', icon: LayoutDashboard, permission: 'manage_tournaments' },
+  ].filter(a => hasPermission(admin?.role, a.permission)), [admin?.role]);
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Dashboard</h1>
-      <p className="text-gray-500 dark:text-gray-400 mb-8">Welcome back! Here's your event overview</p>
+    <div className="space-y-8 animate-fade-in">
 
-      {/* Key Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard icon="📅" label="Total Events" value={stats.totalEvents} color="bg-blue-50 dark:bg-blue-900/20" loading={loading} />
-        <StatCard icon="📝" label="Registrations" value={stats.totalRegistrations} color="bg-green-50 dark:bg-green-900/20" loading={loading} />
-        <StatCard icon="✅" label="Checked In" value={stats.checkedIn} color="bg-emerald-50 dark:bg-emerald-900/20" loading={loading} />
-        <StatCard icon="💰" label="Payments Pending" value={stats.pendingPayments} color="bg-orange-50 dark:bg-orange-900/20" loading={loading} />
+      {/* Page title */}
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Welcome back, <span className="font-medium text-gray-700">{admin?.name || 'Admin'}</span>
+        </p>
+      </div>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard icon={CalendarDays} label="Total Events" value={stats.totalEvents} accent="bg-blue-600" loading={loading} />
+        <StatCard icon={Users} label="Registrations" value={stats.totalRegistrations} accent="bg-emerald-600" loading={loading} />
+        <StatCard icon={CheckCircle2} label="Checked In" value={stats.checkedIn} accent="bg-violet-600" loading={loading} />
+        <StatCard icon={CreditCard} label="Pending Pay" value={stats.pendingPayments} accent="bg-amber-500" loading={loading} />
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white dark:bg-dark-card rounded-xl p-6 border border-gray-100 dark:border-dark-border mb-8 shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {quickActions.map((item) => (
-            <Link 
-              key={item.to} 
-              to={item.to} 
-              className={`${item.color} p-4 rounded-lg flex flex-col items-center gap-2 transition-all duration-300 hover:scale-105 active:scale-95`}
+      <div className="flex flex-wrap gap-2">
+        {quickActions.map(a => {
+          const Icon = a.icon;
+          return (
+            <Link
+              key={a.to}
+              to={a.to}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors"
             >
-              <span className="text-sm font-semibold">{item.short}</span>
-              <span className="text-xs font-medium text-center">{item.label}</span>
+              <Icon size={15} />
+              {a.label}
             </Link>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Event Registrations Bar Chart */}
-        <ChartCard title="Registrations by Event" loading={loading && eventRegData.length === 0}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={eventRegData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="registrations" fill="#3b82f6" name="Registrations" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-        {/* Payment Status Pie Chart */}
-        <ChartCard title="Payment Status" loading={loading && paymentData.length === 0}>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={paymentData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {paymentData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        {/* Bar chart */}
+        <div className="lg:col-span-3 bg-white border border-gray-200 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingUp size={16} className="text-blue-500" />
+            <h2 className="text-sm font-semibold text-gray-800">Registrations by Event</h2>
+          </div>
+          {loading ? (
+            <div className="h-64 rounded-lg bg-gray-50 animate-pulse" />
+          ) : (
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={barData} margin={{ top: 0, right: 8, left: -24, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} dy={8} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#9ca3af' }} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: '#3b82f6', opacity: 0.06 }} />
+                <Bar dataKey="regs" name="Registrations" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-        {/* Gender Composition Pie Chart */}
-        <ChartCard title="Gender Distribution" loading={loading && genderData.length === 0}>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={genderData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, value }) => `${name}: ${value}`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {genderData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+        {/* Donut chart */}
+        <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-gray-800 mb-5">Payment Status</h2>
+          {loading ? (
+            <div className="h-64 rounded-lg bg-gray-50 animate-pulse" />
+          ) : pieData.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-20">No payment data yet</p>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={pieData} cx="50%" cy="50%"
+                    innerRadius={60} outerRadius={85}
+                    paddingAngle={3} dataKey="value" stroke="none"
+                  >
+                    {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex items-center justify-center gap-5 mt-3">
+                {pieData.map(d => (
+                  <span key={d.name} className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: d.color }} />
+                    {d.name} ({d.value})
+                  </span>
                 ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        {/* Check-in Progress Bar Chart */}
-        <ChartCard title="Check-in Progress" loading={loading}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart
-              data={checkinProgress}
-              margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-              layout="vertical"
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis dataKey="name" type="category" />
-              <Tooltip />
-              <Bar dataKey="value" radius={8}>
-                {checkinProgress.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Recent Registrations */}
-      <div className="bg-white dark:bg-dark-card rounded-xl p-6 border border-gray-100 dark:border-dark-border shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Registrations</h2>
+      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-800">Recent Registrations</h2>
           {hasPermission(admin?.role, 'view_registrations') && (
-            <Link to="/admin/registrations" className="text-sm text-blue-600 dark:text-blue-400 hover:underline transition-colors">View all →</Link>
+            <Link to="/admin/registrations" className="text-xs font-medium text-blue-600 hover:underline inline-flex items-center gap-1">
+              View all <ArrowRight size={13} />
+            </Link>
           )}
         </div>
+
         {loading ? (
-          <div className="space-y-3">
-            <ListItemSkeleton />
-            <ListItemSkeleton />
-            <ListItemSkeleton />
+          <div className="p-5 space-y-3">
+            {[1,2,3].map(i => <div key={i} className="h-12 bg-gray-50 rounded-lg animate-pulse" />)}
           </div>
         ) : recentRegs.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-8">No registrations yet</p>
+          <p className="text-center text-sm text-gray-400 py-12">No registrations yet</p>
         ) : (
-          <div className="space-y-2">
-            {recentRegs.map((reg) => (
-              <div
-                key={reg._id}
-                className="p-3 border border-gray-100 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200 cursor-pointer group"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{reg.eventId?.title || '-'}</p>
-                    <p className="text-xs text-gray-500">{reg.teamName || `${reg.players.length} player(s)`}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                      reg.paymentStatus === 'paid' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
-                      reg.paymentStatus === 'pending' ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' :
-                      'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                    }`}>
-                      {reg.paymentStatus === 'paid' ? '✓ Paid' : reg.paymentStatus === 'pending' ? '⏳ Pending' : 'Free'}
-                    </span>
-                  </div>
+          <div className="divide-y divide-gray-100">
+            {recentRegs.map(reg => (
+              <div key={reg._id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+                <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold shrink-0">
+                  {(reg.teamName || reg.players?.[0]?.name || '?').charAt(0).toUpperCase()}
                 </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {reg.teamName || reg.players?.[0]?.name}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {reg.eventId?.title || '–'} · {reg.players?.length || 0} player(s)
+                  </p>
+                </div>
+                <span className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                  reg.paymentStatus === 'paid'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : reg.paymentStatus === 'pending'
+                    ? 'bg-amber-50 text-amber-700'
+                    : 'bg-blue-50 text-blue-700'
+                }`}>
+                  {reg.paymentStatus === 'paid' ? 'Paid' : reg.paymentStatus === 'pending' ? 'Pending' : 'Free'}
+                </span>
+                <span className="hidden sm:block text-xs text-gray-400 shrink-0">
+                  {new Date(reg.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                </span>
               </div>
             ))}
           </div>

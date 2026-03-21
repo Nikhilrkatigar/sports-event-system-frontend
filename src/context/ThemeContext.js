@@ -4,13 +4,10 @@ const ThemeContext = createContext();
 
 export function ThemeProvider({ children }) {
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check local storage or system preference
+    // Only use dark mode if user has explicitly chosen it before
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme');
-      if (savedTheme) {
-        return savedTheme === 'dark';
-      }
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return savedTheme === 'dark';
     }
     return false;
   });

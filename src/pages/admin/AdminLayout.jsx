@@ -33,7 +33,7 @@ export default function AdminLayout() {
   const visibleNavItems = navItems.filter((item) => hasPermission(admin?.role, item.permission));
 
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="min-h-screen bg-gray-50 flex">
       <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static z-40 w-64 h-full lg:h-auto bg-gradient-to-b from-blue-900 to-blue-800 text-white flex flex-col transition-transform duration-300`}>
         <div className="p-5 border-b border-white/10">
           <div className="text-lg font-bold">Sports CMS</div>
