@@ -80,13 +80,19 @@ export default function ManageTournaments() {
     const s1 = scores[`${matchId}_1`];
     const s2 = scores[`${matchId}_2`];
     if (s1 == null || s2 == null || s1 === '' || s2 === '') return toast.error('Enter both scores');
+    
+    const previousMatches = matches;
+    setMatches(prev => prev.map(m =>
+      m._id === matchId ? { ...m, score1: Number(s1), score2: Number(s2) } : m
+    ));
     setSavingMatch(matchId);
+    
     try {
       const r = await API.put(`/tournaments/match/${matchId}`, { score1: Number(s1), score2: Number(s2) });
       setMatches(r.data.allMatches);
-      await loadTournament(selectedEventId);
       toast.success('Score saved');
     } catch (err) {
+      setMatches(previousMatches);
       toast.error(err.response?.data?.message || 'Failed to save score');
     } finally {
       setSavingMatch(null);
@@ -94,14 +100,21 @@ export default function ManageTournaments() {
   };
 
   const handleSaveSchedule = async (matchId) => {
+    const previousMatches = matches;
+    const scheduledTime = scheduleInputs[matchId];
+    setMatches(prev => prev.map(m =>
+      m._id === matchId ? { ...m, scheduledTime: scheduledTime || null } : m
+    ));
     setSavingSchedule(matchId);
+    
     try {
       const r = await API.patch(`/tournaments/match/${matchId}/schedule`, {
-        scheduledTime: scheduleInputs[matchId] || null
+        scheduledTime: scheduledTime || null
       });
       setMatches(r.data.allMatches);
       toast.success('Match schedule updated');
     } catch (err) {
+      setMatches(previousMatches);
       toast.error(err.response?.data?.message || 'Failed to update schedule');
     } finally {
       setSavingSchedule(null);
@@ -117,14 +130,20 @@ export default function ManageTournaments() {
       isDangerous: true
     });
     if (!ok) return;
+    
+    const previousTournament = tournament;
+    const previousMatches = matches;
+    setTournament(null);
+    setMatches([]);
+    
     try {
       await API.delete(`/tournaments/${tournament._id}`);
-      setTournament(null);
-      setMatches([]);
       setScores({});
       setScheduleInputs({});
       toast.success('Tournament deleted');
     } catch (err) {
+      setTournament(previousTournament);
+      setMatches(previousMatches);
       toast.error(err.response?.data?.message || 'Failed to delete');
     }
   };

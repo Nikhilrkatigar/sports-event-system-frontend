@@ -224,15 +224,15 @@ export default function ManageLeaderboard() {
               <tr><td colSpan="5" className="text-center py-8 text-gray-400">No entries yet</td></tr>
             ) : (
               entries.map(e => (
-                <tr key={e._id} className="border-t hover:bg-gray-50">
+                <tr key={e._id} className="border-t hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200">
                   <td className="px-4 py-3">{e.rank || '—'}</td>
                   <td className="px-4 py-3 font-medium">{e.teamOrPlayer}</td>
                   <td className="px-4 py-3 text-gray-500">{e.eventId?.title || '—'}</td>
                   <td className="px-4 py-3 font-bold text-blue-700">{e.score}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => { setForm({ eventId: e.eventId?._id || '', teamOrPlayer: e.teamOrPlayer, score: e.score, rank: e.rank }); setEditId(e._id); }} className="text-xs border border-gray-200 px-2 py-1 rounded hover:bg-gray-50">Edit</button>
-                      <button onClick={() => handleDelete(e._id)} className="btn-danger text-xs">Del</button>
+                      <button onClick={() => { setForm({ eventId: e.eventId?._id || '', teamOrPlayer: e.teamOrPlayer, score: e.score, rank: e.rank }); setEditId(e._id); }} className="text-xs border border-gray-200 dark:border-gray-700 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 transform hover:scale-105">Edit</button>
+                      <button onClick={() => handleDelete(e._id)} className="btn-danger text-xs transform hover:scale-105 transition-transform duration-200">Del</button>
                     </div>
                   </td>
                 </tr>

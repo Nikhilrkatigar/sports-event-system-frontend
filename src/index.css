@@ -122,6 +122,18 @@
   animation: glow 2s ease-in-out infinite;
 }
 
+@keyframes pan-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-pan-gradient {
+  animation: pan-gradient 15s ease infinite;
+  background-size: 200% 200%;
+}
+
+
 /* Stagger animations */
 .animate-stagger-1 { animation: slideUp 0.6s ease-out 0.1s backwards; }
 .animate-stagger-2 { animation: slideUp 0.6s ease-out 0.2s backwards; }

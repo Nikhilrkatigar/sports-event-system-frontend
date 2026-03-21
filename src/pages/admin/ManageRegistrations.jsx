@@ -149,8 +149,8 @@ export default function ManageRegistrations() {
   const summary = useMemo(() => {
     const totalPlayers = registrations.reduce((sum, reg) => sum + reg.players.length, 0);
     const checkedInPlayers = registrations.reduce((sum, reg) => sum + reg.players.filter((player) => player.checkInStatus).length, 0);
-    const paidRegistrations = registrations.filter(reg => reg.paymentStatus === 'paid').length;
-    const pendingPayments = registrations.filter(reg => reg.paymentStatus === 'pending').length;
+    const paidRegistrations = registrations.filter(reg => reg.paymentStatus === 'paid' && reg.eventId?.registrationFee > 0).length;
+    const pendingPayments = registrations.filter(reg => reg.paymentStatus === 'pending' && reg.eventId?.registrationFee > 0).length;
     return {
       registrations: registrations.length,
       players: totalPlayers,
@@ -170,11 +170,15 @@ export default function ManageRegistrations() {
       isDangerous: true,
     });
     if (!confirmed) return;
+    
+    const previousRegistrations = registrations;
+    setRegistrations(prev => prev.filter(reg => reg._id !== id));
+    
     try {
       await API.delete(`/registrations/${id}`);
       toast.success('Registration deleted successfully');
-      load();
     } catch (err) {
+      setRegistrations(previousRegistrations);
       toast.error(err.response?.data?.message || 'Failed to delete registration');
     }
   };
@@ -220,6 +224,15 @@ export default function ManageRegistrations() {
   };
 
   const updatePlayerGender = async (registrationId, playerId, gender) => {
+    const previousRegistrations = registrations;
+    setRegistrations(prev => prev.map(reg => {
+      if (reg._id !== registrationId) return reg;
+      return {
+        ...reg,
+        players: reg.players.map(player => player._id === playerId ? { ...player, gender } : player)
+      };
+    }));
+    
     try {
       const res = await API.patch(`/registrations/${registrationId}/players/${playerId}`, { gender });
       const updated = res.data?.player;
@@ -232,11 +245,21 @@ export default function ManageRegistrations() {
       }));
       toast.success('Gender updated');
     } catch (err) {
+      setRegistrations(previousRegistrations);
       toast.error(err.response?.data?.message || 'Failed to update gender');
     }
   };
 
   const updateCheckInStatus = async (registrationId, playerId, checkInStatus) => {
+    const previousRegistrations = registrations;
+    setRegistrations(prev => prev.map(reg => {
+      if (reg._id !== registrationId) return reg;
+      return {
+        ...reg,
+        players: reg.players.map(player => player._id === playerId ? { ...player, checkInStatus } : player)
+      };
+    }));
+    
     try {
       const res = await API.patch(`/registrations/${registrationId}/players/${playerId}/checkin`, { checkInStatus });
       const updated = res.data?.player;
@@ -249,6 +272,7 @@ export default function ManageRegistrations() {
       }));
       toast.success(checkInStatus ? 'Player checked in' : 'Check-in reverted');
     } catch (err) {
+      setRegistrations(previousRegistrations);
       toast.error(err.response?.data?.message || 'Failed to update check-in status');
     }
   };
@@ -258,14 +282,24 @@ export default function ManageRegistrations() {
       toast.error('Please enter a team name');
       return;
     }
+    
+    const previousRegistrations = registrations;
+    const trimmedName = newTeamName.trim();
+    setRegistrations(prev => prev.map(reg =>
+      reg._id === registrationId ? { ...reg, teamName: trimmedName } : reg
+    ));
+    setEditingTeam(null);
+    
     try {
-      const res = await API.patch(`/registrations/${registrationId}`, { teamName: newTeamName.trim() });
+      const res = await API.patch(`/registrations/${registrationId}`, { teamName: trimmedName });
       setRegistrations(prev => prev.map(reg =>
         reg._id === registrationId ? { ...reg, teamName: res.data.teamName } : reg
       ));
-      setEditingTeam(null);
       toast.success('Team name updated');
     } catch (err) {
+      setRegistrations(previousRegistrations);
+      setEditingTeam(registrationId);
+      setEditingTeamName(trimmedName);
       toast.error(err.response?.data?.message || 'Failed to update team name');
     }
   };
@@ -273,6 +307,7 @@ export default function ManageRegistrations() {
   const verifyPayment = async (registrationId, isVerifiying) => {
     const endpoint = isVerifiying ? `verify-payment` : `unverify-payment`;
     const action = isVerifiying ? 'mark as paid' : 'reset payment status';
+    const successMessage = isVerifiying ? 'Payment verified successfully' : 'Payment status reset';
     const confirmed = await confirm({
       title: isVerifiying ? 'Verify Payment' : 'Reset Payment Status',
       message: `Are you sure you want to ${action} for this registration?`,
@@ -281,14 +316,21 @@ export default function ManageRegistrations() {
     });
     if (!confirmed) return;
     
+    const previousRegistrations = registrations;
+    const newStatus = isVerifiying ? 'paid' : 'pending';
+    setRegistrations(prev => prev.map(reg =>
+      reg._id === registrationId ? { ...reg, paymentStatus: newStatus } : reg
+    ));
+    setVerifyingPayment(registrationId);
+    
     try {
-      setVerifyingPayment(registrationId);
       const res = await API.patch(`/registrations/${registrationId}/${endpoint}`);
       setRegistrations(prev => prev.map(reg =>
         reg._id === registrationId ? res.data.data : reg
       ));
-      toast.success(isVerifiying ? 'Payment verified successfully' : 'Payment status reset');
+      toast.success(successMessage);
     } catch (err) {
+      setRegistrations(previousRegistrations);
       toast.error(err.response?.data?.message || `Failed to ${action}`);
     } finally {
       setVerifyingPayment(null);
@@ -471,13 +513,13 @@ export default function ManageRegistrations() {
                       <td className="px-4 py-3 text-gray-500 text-xs">{new Date(reg.createdAt).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {getPaymentStatusBadge(reg.paymentStatus)}
-                          {reg.paymentScreenshot && (
+                          {(reg.eventId?.registrationFee > 0) && getPaymentStatusBadge(reg.paymentStatus)}
+                          {(reg.eventId?.registrationFee > 0) && reg.paymentScreenshot && (
                             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded font-medium">
                               📸 Screenshot
                             </span>
                           )}
-                          {reg.paymentStatus === 'pending' && canEditRegistration && (
+                          {(reg.eventId?.registrationFee > 0) && reg.paymentStatus === 'pending' && canEditRegistration && (
                             <button
                               onClick={() => verifyPayment(reg._id, true)}
                               disabled={verifyingPayment === reg._id}
@@ -486,7 +528,7 @@ export default function ManageRegistrations() {
                               Mark Paid
                             </button>
                           )}
-                          {reg.paymentStatus === 'paid' && canEditRegistration && (
+                          {(reg.eventId?.registrationFee > 0) && reg.paymentStatus === 'paid' && canEditRegistration && (
                             <button
                               onClick={() => verifyPayment(reg._id, false)}
                               disabled={verifyingPayment === reg._id}

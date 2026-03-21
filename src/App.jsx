@@ -6,6 +6,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { getAdminHomeByRole, hasPermission } from './utils/roles';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import { setConfirmDialogRef } from './hooks/useConfirm';
+import MobileBottomNav from './components/MobileBottomNav';
+import DashboardWithCharts from './pages/admin/DashboardWithCharts';
 
 // Public pages
 import HomePage from './pages/public/HomePage';
@@ -21,7 +23,6 @@ import TimelinePage from './pages/public/TimelinePage';
 import LoginPage from './pages/admin/LoginPage';
 import SetupPage from './pages/admin/SetupPage';
 import AdminLayout from './pages/admin/AdminLayout';
-import Dashboard from './pages/admin/Dashboard';
 import ManageEvents from './pages/admin/ManageEvents';
 import ManageRegistrations from './pages/admin/ManageRegistrations';
 import ManageLeaderboard from './pages/admin/ManageLeaderboard';
@@ -129,7 +130,7 @@ export default function App() {
             <Route path="/admin/login" element={<LoginPage />} />
             <Route path="/admin/setup" element={<SetupPage />} />
             <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-              <Route index element={<PermissionRoute permission="view_dashboard"><Dashboard /></PermissionRoute>} />
+              <Route index element={<PermissionRoute permission="view_dashboard"><DashboardWithCharts /></PermissionRoute>} />
               <Route path="events" element={<PermissionRoute permission="manage_events"><ManageEvents /></PermissionRoute>} />
               <Route path="registrations" element={<PermissionRoute permission="view_registrations"><ManageRegistrations /></PermissionRoute>} />
               <Route path="leaderboard" element={<PermissionRoute permission="manage_leaderboard"><ManageLeaderboard /></PermissionRoute>} />
@@ -143,6 +144,7 @@ export default function App() {
               <Route path="messages" element={<PermissionRoute permission="view_registrations"><ManageCRM /></PermissionRoute>} />
             </Route>
           </Routes>
+          <MobileBottomNav />
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>

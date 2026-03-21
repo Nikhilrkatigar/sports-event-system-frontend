@@ -31,11 +31,12 @@ export default function ManageGallery() {
     fd.append('caption', caption);
     if (mode === 'upload' && file) fd.append('image', file);
     else fd.append('imageUrl', imageUrl);
+    
     try {
-      await API.post('/gallery', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await API.post('/gallery', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setGallery(prev => [res.data, ...prev]);
       toast.success('Image added successfully');
       setCaption(''); setImageUrl(''); setFile(null);
-      load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to add image');
     }
@@ -50,11 +51,15 @@ export default function ManageGallery() {
       isDangerous: true,
     });
     if (!confirmed) return;
+    
+    const previousGallery = gallery;
+    setGallery(prev => prev.filter(item => item._id !== id));
+    
     try {
       await API.delete(`/gallery/${id}`);
       toast.success('Image deleted successfully');
-      load();
     } catch (err) {
+      setGallery(previousGallery);
       toast.error(err.response?.data?.message || 'Failed to delete image');
     }
   };
@@ -100,10 +105,10 @@ export default function ManageGallery() {
           <div className="col-span-full text-center py-12 text-gray-400">No images yet. Add some above!</div>
         ) : (
           gallery.map(item => (
-            <div key={item._id} className="relative group rounded-xl overflow-hidden border border-gray-200">
-              <img src={item.image} alt={item.caption} className="w-full aspect-square object-contain bg-gray-100 p-2" />
+            <div key={item._id} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105 cursor-pointer">
+              <img src={item.image} alt={item.caption} className="w-full aspect-square object-contain bg-gray-100 dark:bg-gray-800 p-2" />
               {item.caption && <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">{item.caption}</div>}
-              <button onClick={() => handleDelete(item._id)} className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">✕</button>
+              <button onClick={() => handleDelete(item._id)} className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center transform hover:scale-110">✕</button>
             </div>
           ))
         )}

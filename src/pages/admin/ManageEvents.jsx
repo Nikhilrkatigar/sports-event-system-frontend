@@ -126,21 +126,34 @@ export default function ManageEvents() {
       isDangerous: true,
     });
     if (!confirmed) return;
+    
+    const previousEvents = events;
+    setEvents(prev => prev.filter(e => e._id !== id));
+    
     try {
       await API.delete(`/events/${id}`);
       toast.success('Event deleted successfully');
-      load();
     } catch (err) {
+      setEvents(previousEvents);
       toast.error(err.response?.data?.message || 'Failed to delete event');
     }
   };
 
   const toggleRegistration = async (event) => {
+    const previousEvents = events;
+    const newRegistrationOpen = !event.registrationOpen;
+    const newStatus = newRegistrationOpen ? 'open' : 'published';
+    
+    setEvents(prev => prev.map(item =>
+      item._id === event._id ? { ...item, registrationOpen: newRegistrationOpen, status: newStatus } : item
+    ));
+    
     try {
       const r = await API.patch(`/events/${event._id}/toggle-registration`);
-      setEvents((prev) => prev.map((item) => (item._id === event._id ? { ...item, ...r.data } : item)));
+      setEvents(prev => prev.map(item => (item._id === event._id ? { ...item, ...r.data } : item)));
       toast.success(`Registration ${r.data.registrationOpen ? 'opened' : 'closed'} for ${event.title}`);
     } catch (err) {
+      setEvents(previousEvents);
       toast.error(err.response?.data?.message || 'Failed to toggle registration');
     }
   };
@@ -357,8 +370,8 @@ export default function ManageEvents() {
           events.map((event) => {
             const statusMeta = getEventStatusMeta(event);
             return (
-              <div key={event._id} className="card flex flex-col">
-                {event.image && <img src={event.image} alt={event.title} className="w-full h-36 object-contain bg-gray-100 p-2 rounded-lg mb-3" />}
+              <div key={event._id} className="card flex flex-col hover:shadow-lg transition-all duration-300 transform hover:scale-105 group">
+                {event.image && <img src={event.image} alt={event.title} className="w-full h-36 object-contain bg-gray-100 dark:bg-gray-800 p-2 rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300" />}
                 <div className="flex items-start justify-between mb-2 gap-3">
                   <div>
                     <h3 className="font-semibold text-gray-900">{event.title}</h3>
@@ -412,18 +425,18 @@ export default function ManageEvents() {
                 {(event.status === 'published' || event.status === 'open' || event.status === 'full') && (
                   <button
                     onClick={() => toggleRegistration(event)}
-                    className={`w-full mb-2 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    className={`w-full mb-2 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 transform hover:scale-105 ${
                       event.registrationOpen === false
-                        ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                        : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/30'
+                        : 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/30'
                     }`}
                   >
                     {event.registrationOpen === false ? 'Registration Closed - Click to Open' : 'Registration Open - Click to Close'}
                   </button>
                 )}
                 <div className="flex gap-2">
-                  <button onClick={() => handleEdit(event)} className="flex-1 text-center py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50">Edit</button>
-                  <button onClick={() => handleDelete(event._id)} className="flex-1 text-center py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
+                  <button onClick={() => handleEdit(event)} className="flex-1 text-center py-1.5 text-xs border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 transform hover:scale-105 font-medium">Edit</button>
+                  <button onClick={() => handleDelete(event._id)} className="flex-1 text-center py-1.5 text-xs border border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 transform hover:scale-105 font-medium">Delete</button>
                 </div>
               </div>
             );

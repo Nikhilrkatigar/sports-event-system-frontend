@@ -40,7 +40,7 @@ export default function TournamentsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tournaments.map((tournament) => (
-              <div key={tournament._id} className="bg-white dark:bg-dark-card rounded-xl shadow-sm hover:shadow-md transition-all border border-gray-100 dark:border-dark-border overflow-hidden">
+              <div key={tournament._id} className="bg-white dark:bg-dark-card rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105 border border-gray-100 dark:border-dark-border overflow-hidden">
                 <div className="bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-700 dark:to-cyan-700 px-6 py-4 text-white">
                   <h2 className="text-xl font-bold">{tournament.eventId?.title || 'Tournament'}</h2>
                 </div>
@@ -86,7 +86,7 @@ export default function TournamentsPage() {
 
                   <Link
                     to={`/tournaments/${tournament.eventId?._id}`}
-                    className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors"
+                    className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95"
                   >
                     View Bracket
                   </Link>

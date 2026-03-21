@@ -11,6 +11,7 @@ import {
   getEventStatusMeta,
   PUBLIC_EVENT_STATUSES
 } from '../../utils/events';
+import { ChevronDown, ChevronUp, User, Loader2, CheckCircle2, ChevronRight } from 'lucide-react';
 
 const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tech', 'M.Tech', 'BA', 'MA', 'B.Ed', 'Other'];
 const MAX_QR_TEXT_LENGTH = 1000;
@@ -55,6 +56,8 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(null);
   const [screenshotFile, setScreenshotFile] = useState(null);
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
+  const [expandedPlayer, setExpandedPlayer] = useState(0);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
 
   useEffect(() => {
     Promise.all([API.get('/events'), API.get('/settings')])
@@ -130,6 +133,7 @@ export default function RegisterPage() {
   }, [selectedEvent, departments]);
 
   const handleSubmit = async () => {
+    setSubmitAttempted(true);
     if (!selectedEvent) return toast.error('Please select an event');
     if (!canRegisterForEvent(selectedEvent)) return toast.error('Registration is not open for this event');
 
@@ -484,109 +488,148 @@ export default function RegisterPage() {
                 </h2>
 
                 {selectedEvent.type === 'team' && (
-                  <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
-                    <label className="block text-sm font-medium text-gray-900 dark:text-gray-200 mb-2">Team Name *</label>
+                  <div className="mb-6 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/50 rounded-xl relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-transform group-hover:scale-150 duration-700"></div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2 relative z-10">Team Name <span className="text-red-500">*</span></label>
                     <input
-                      className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                      placeholder="Enter your team name"
+                      className={`input-field w-full text-base dark:bg-gray-800/80 dark:border-gray-700 dark:text-white relative z-10 transition-colors focus:bg-white ${submitAttempted && !teamName ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                      placeholder="e.g. The Champions"
                       value={teamName}
                       onChange={e => setTeamName(e.target.value)}
                     />
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">This name will appear in the tournament bracket and reports.</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 relative z-10">This name will appear in the tournament bracket and reports.</p>
                   </div>
                 )}
 
-                <div className="space-y-4">
-                  {players.map((player, idx) => (
+                <div className="space-y-3">
+                  {players.map((player, idx) => {
+                    const isExpanded = expandedPlayer === idx || selectedEvent.type !== 'team';
+                    const hasError = submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender);
+                    return (
                     <div
                       key={idx}
-                      className={`rounded-xl border p-4 ${player.isSubstitute ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800/50' : 'bg-white dark:bg-dark-card border-gray-200 dark:border-dark-border'}`}
+                      className={`rounded-xl border overflow-hidden transition-all duration-300 shadow-sm ${player.isSubstitute ? 'border-yellow-200 dark:border-yellow-800/50' : 'border-gray-200 dark:border-dark-border'} ${hasError ? 'border-red-400 dark:border-red-500/50 bg-red-50/10' : ''}`}
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                          {player.isSubstitute
-                            ? `Substitute ${idx - (selectedEvent.teamSize || 1) + 1}`
-                            : `Player ${idx + 1}`}
-                        </span>
+                      {/* Accordion Header */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPlayer(isExpanded ? (selectedEvent.type === 'team' ? null : 0) : idx)}
+                        className={`w-full flex items-center justify-between p-4 px-5 text-left transition-colors ${player.isSubstitute ? 'bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-900/10' : 'bg-gray-50/50 hover:bg-gray-100 dark:bg-dark-card'} ${isExpanded ? 'border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800' : ''}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-sm ${player.isSubstitute ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
+                            <User size={18} />
+                          </div>
+                          <div>
+                            <span className="text-sm font-bold text-gray-900 dark:text-white block">
+                              {player.isSubstitute
+                                ? `Substitute ${idx - (selectedEvent.teamSize || 1) + 1}`
+                                : `Player ${idx + 1}`}
+                              {player.isTeamLeader && <span className="ml-2 text-[10px] bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full tracking-wider uppercase font-semibold">Leader</span>}
+                            </span>
+                            {!isExpanded && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block font-medium">
+                                {player.name ? `${player.name} • ${player.department || 'No dept'}` : 'Click to add details'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         <div className="flex items-center gap-3">
-                          {selectedEvent.type === 'team' && !player.isSubstitute && (
-                            <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 cursor-pointer select-none">
-                              <input
-                                type="radio"
-                                name="teamLeader"
-                                checked={Boolean(player.isTeamLeader)}
-                                onChange={() => setTeamLeader(idx)}
-                                className="accent-blue-600"
-                              />
-                              Leader
-                            </label>
-                          )}
-                          {selectedEvent.type === 'team' && player.isSubstitute && (
-                            <button
-                              onClick={() => removePlayer(idx)}
-                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-medium"
-                            >
-                              Remove
-                            </button>
-                          )}
+                           {hasError && !isExpanded && <span className="text-xs text-red-500 font-semibold bg-red-50 px-2 py-1 rounded-full uppercase tracking-wider">Incomplete</span>}
+                           {player.name && player.uucms && player.phone && !hasError && !isExpanded && <CheckCircle2 className="text-green-500" size={22} />}
+                           {selectedEvent.type === 'team' && (isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />)}
                         </div>
-                      </div>
+                      </button>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Full Name *</label>
-                          <input
-                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            placeholder="Full name"
-                            value={player.name}
-                            onChange={e => updatePlayer(idx, 'name', e.target.value)}
-                          />
+                      {/* Accordion Body */}
+                      <div className={`transition-all duration-300 overflow-hidden bg-white dark:bg-dark-card ${isExpanded ? 'max-h-[1000px] opacity-100 p-5 lg:p-6' : 'max-h-0 opacity-0'}`}>
+                        <div className="flex items-center justify-between mb-5 pb-4 border-b border-gray-100 dark:border-gray-800">
+                          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Player Details</span>
+                          <div className="flex items-center gap-3">
+                            {selectedEvent.type === 'team' && !player.isSubstitute && (
+                              <label className="flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300 cursor-pointer select-none bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors border border-gray-200 dark:border-gray-700 hover:border-blue-300 group">
+                                <input
+                                  type="radio"
+                                  name="teamLeader"
+                                  checked={Boolean(player.isTeamLeader)}
+                                  onChange={() => setTeamLeader(idx)}
+                                  className="accent-blue-600 w-3.5 h-3.5 group-hover:scale-110 transition-transform"
+                                />
+                                Set as Leader
+                              </label>
+                            )}
+                            {selectedEvent.type === 'team' && player.isSubstitute && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); removePlayer(idx); }}
+                                className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-xs font-bold bg-red-50 dark:bg-red-900/20 px-4 py-1.5 rounded-lg transition-colors border border-red-100 dark:border-red-900/50 hover:bg-red-100"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">UUCMS No. *</label>
-                          <input
-                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            placeholder="U02CG23S0001"
-                            value={player.uucms}
-                            onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Phone *</label>
-                          <input
-                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            type="tel"
-                            placeholder="Phone number"
-                            value={player.phone}
-                            onChange={e => updatePlayer(idx, 'phone', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Department *</label>
-                          <select
-                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            value={player.department}
-                            onChange={e => updatePlayer(idx, 'department', e.target.value)}
-                          >
-                            <option value="">Select department</option>
-                            {availableDepartments.map(department => <option key={department} value={department}>{department}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Gender *</label>
-                          <select
-                            className="input-field w-full text-base dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-                            value={player.gender}
-                            onChange={e => updatePlayer(idx, 'gender', e.target.value)}
-                          >
-                            <option value="">Select gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                          </select>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Full Name <span className="text-red-500">*</span></label>
+                            <input
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.name ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              placeholder="e.g. John Doe"
+                              value={player.name}
+                              onChange={e => updatePlayer(idx, 'name', e.target.value)}
+                            />
+                            {submitAttempted && !player.name && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Name is required</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">UUCMS No. <span className="text-red-500">*</span></label>
+                            <input
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              placeholder="e.g. U02CG23S0001"
+                              value={player.uucms}
+                              onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
+                            />
+                            {submitAttempted && !player.uucms && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">UUCMS is required</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Phone <span className="text-red-500">*</span></label>
+                            <input
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.phone ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              type="tel"
+                              placeholder="10-digit number"
+                              value={player.phone}
+                              onChange={e => updatePlayer(idx, 'phone', e.target.value)}
+                            />
+                            {submitAttempted && !player.phone && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Phone is required</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Department <span className="text-red-500">*</span></label>
+                            <select
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.department ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              value={player.department}
+                              onChange={e => updatePlayer(idx, 'department', e.target.value)}
+                            >
+                              <option value="">Select department</option>
+                              {availableDepartments.map(department => <option key={department} value={department}>{department}</option>)}
+                            </select>
+                            {submitAttempted && !player.department && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Department is required</p>}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Gender <span className="text-red-500">*</span></label>
+                            <select
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.gender ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              value={player.gender}
+                              onChange={e => updatePlayer(idx, 'gender', e.target.value)}
+                            >
+                              <option value="">Select gender</option>
+                              <option value="male">Male</option>
+                              <option value="female">Female</option>
+                            </select>
+                            {submitAttempted && !player.gender && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Gender is required</p>}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
                 </div>
 
                 {selectedEvent.type === 'team' && (
@@ -604,9 +647,19 @@ export default function RegisterPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="btn-primary mt-6 w-full py-3 text-base font-semibold rounded-xl"
+                  className="btn-primary mt-8 w-full py-4 text-base font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-75 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 >
-                  {loading ? 'Registering...' : 'Submit Registration'}
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Registering...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Submit Registration</span>
+                      <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
                 </button>
               </div>
             )}
