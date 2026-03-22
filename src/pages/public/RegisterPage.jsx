@@ -90,7 +90,9 @@ export default function RegisterPage() {
   };
 
   const updatePlayer = (idx, field, value) => {
-    setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, [field]: value } : player));
+    // Auto-convert UUCMS to uppercase
+    const finalValue = field === 'uucms' ? String(value || '').toUpperCase() : value;
+    setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, [field]: finalValue } : player));
   };
 
   const setTeamLeader = (idx) => {
@@ -583,8 +585,8 @@ export default function RegisterPage() {
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">UUCMS No. <span className="text-red-500">*</span></label>
                             <input
-                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
-                              placeholder="e.g. U02CG23S0001"
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white font-mono ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              placeholder="e.g. U02CG23S0001 (automatically UPPERCASE)"
                               value={player.uucms}
                               onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
                             />

@@ -39,6 +39,7 @@ export default function ManageLeaderboard() {
   const [events, setEvents] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [registrations, setRegistrations] = useState([]);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,7 @@ export default function ManageLeaderboard() {
   useEffect(() => {
     if (!form.eventId) {
       setParticipants([]);
+      setRegistrations([]);
       return;
     }
 
@@ -72,11 +74,13 @@ export default function ManageLeaderboard() {
         if (!active) return;
         const event = events.find(ev => ev._id === form.eventId);
         const eventType = event?.type || r.data?.[0]?.eventId?.type || 'single';
+        setRegistrations(r.data || []);
         setParticipants(buildParticipantOptions(r.data, eventType));
       })
       .catch(() => {
         if (!active) return;
         setParticipants([]);
+        setRegistrations([]);
       })
       .finally(() => {
         if (!active) return;
@@ -90,6 +94,43 @@ export default function ManageLeaderboard() {
     () => events.find(ev => ev._id === form.eventId) || null,
     [events, form.eventId]
   );
+
+  const detectedGender = useMemo(() => {
+    if (!form.teamOrPlayer || !registrations.length) return 'unspecified';
+    
+    const event = events.find(ev => ev._id === form.eventId);
+    if (!event) return 'unspecified';
+    
+    // For team events
+    if (event.type === 'team') {
+      for (const app of registrations) {
+        if (app.teamName === form.teamOrPlayer || app.teamId === form.teamOrPlayer) {
+          const genders = app.players
+            .filter(p => !p.isSubstitute)
+            .map(p => p.gender || 'unspecified');
+          if (genders.length === 0) continue;
+          const maleCount = genders.filter(g => g === 'male').length;
+          const femaleCount = genders.filter(g => g === 'female').length;
+          if (maleCount > femaleCount) return 'male';
+          if (femaleCount > maleCount) return 'female';
+          return 'unspecified';
+        }
+      }
+    } else {
+      // For single events
+      for (const app of registrations) {
+        const player = app.players.find(
+          p => !p.isSubstitute && (
+            p.name === form.teamOrPlayer || 
+            `${p.name} (${p.uucms})` === form.teamOrPlayer
+          )
+        );
+        if (player && player.gender) return player.gender;
+      }
+    }
+    
+    return 'unspecified';
+  }, [form.teamOrPlayer, registrations, events, form.eventId]);
 
   const autoRank = useMemo(() => {
     if (!form.eventId || form.score === '' || form.score === null || form.score === undefined) return '';
@@ -150,6 +191,49 @@ export default function ManageLeaderboard() {
     }
   };
 
+  const handleResetHype = async (id, playerName) => {
+    const confirmed = await confirm({
+      title: '⭐ Reset Hype',
+      message: `Reset hype count for "${playerName}" to 0? This action cannot be undone.`,
+      confirmText: 'Reset',
+      cancelText: 'Cancel',
+      isDangerous: false,
+    });
+    if (!confirmed) return;
+    try {
+      await API.patch(`/leaderboard/admin/reset-hype/${id}`);
+      toast.success('Hype reset successfully');
+      load();
+    } catch (err) {
+      console.error('Reset hype error:', err);
+      toast.error(err.response?.data?.message || 'Failed to reset hype');
+    }
+  };
+
+  const handleResetAllHype = async () => {
+    const confirmed = await confirm({
+      title: '⭐ Reset All Hype',
+      message: 'Reset hype count for ALL athletes to 0? This action cannot be undone.',
+      confirmText: 'Reset All',
+      cancelText: 'Cancel',
+      isDangerous: true,
+    });
+    if (!confirmed) return;
+    try {
+      console.log('Calling reset all hype endpoint...');
+      const response = await API.patch(`/leaderboard/admin/reset-all-hype`);
+      console.log('Reset all hype response:', response);
+      toast.success('All hype counts reset successfully!');
+      load();
+    } catch (err) {
+      console.error('Reset all hype error:', err);
+      console.error('Error response:', err.response);
+      console.error('Error message:', err.message);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to reset all hype';
+      toast.error(errorMsg);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Leaderboard</h1>
@@ -190,8 +274,11 @@ export default function ManageLeaderboard() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Rank</label>
-            <input type="number" className="input-field" value={autoRank || ''} readOnly placeholder="Auto" />
+            <label className="block text-xs font-medium text-gray-600 mb-1">Gender</label>
+            <input type="text" className="input-field" value={
+              detectedGender ? (detectedGender.charAt(0).toUpperCase() + detectedGender.slice(1)) : 'Unspecified'
+            } readOnly placeholder="Auto-detected" />
+            <div className="text-[11px] text-gray-400 mt-1">Auto-detected from registration</div>
           </div>
         </div>
         <div className="flex gap-2 mt-4">
@@ -200,38 +287,64 @@ export default function ManageLeaderboard() {
         </div>
       </div>
 
+      <div className="mb-6 flex justify-between items-center">
+        <h2 className="text-lg font-semibold text-gray-800">Leaderboard Entries</h2>
+        <button 
+          onClick={handleResetAllHype}
+          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition-colors duration-200"
+          title="Reset hype count for all athletes"
+        >
+          🔄 Reset All Hype
+        </button>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="px-4 py-3 text-left">Rank</th>
               <th className="px-4 py-3 text-left">Player / Team</th>
+              <th className="px-4 py-3 text-left">Gender</th>
               <th className="px-4 py-3 text-left">Event</th>
               <th className="px-4 py-3 text-left">Score</th>
+              <th className="px-4 py-3 text-center">⭐ Hype</th>
               <th className="px-4 py-3 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <>
-                <TableRowSkeleton columns={5} />
-                <TableRowSkeleton columns={5} />
-                <TableRowSkeleton columns={5} />
-                <TableRowSkeleton columns={5} />
-                <TableRowSkeleton columns={5} />
+                <TableRowSkeleton columns={7} />
+                <TableRowSkeleton columns={7} />
+                <TableRowSkeleton columns={7} />
+                <TableRowSkeleton columns={7} />
+                <TableRowSkeleton columns={7} />
               </>
             ) : entries.length === 0 ? (
-              <tr><td colSpan="5" className="text-center py-8 text-gray-400">No entries yet</td></tr>
+              <tr><td colSpan="7" className="text-center py-8 text-gray-400">No entries yet</td></tr>
             ) : (
               entries.map(e => (
                 <tr key={e._id} className="border-t hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200">
                   <td className="px-4 py-3">{e.rank || '—'}</td>
                   <td className="px-4 py-3 font-medium">{e.teamOrPlayer}</td>
+                  <td className="px-4 py-3 text-xs capitalize">
+                    <span className={`px-2 py-1 rounded-full ${
+                      e.gender === 'male' ? 'bg-blue-100 text-blue-700' : 
+                      e.gender === 'female' ? 'bg-pink-100 text-pink-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {e.gender || 'Unspecified'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{e.eventId?.title || '—'}</td>
                   <td className="px-4 py-3 font-bold text-blue-700">{e.score}</td>
+                  <td className="px-4 py-3 text-center font-bold text-yellow-500">{e.hype || 0}</td>
                   <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <button onClick={() => { setForm({ eventId: e.eventId?._id || '', teamOrPlayer: e.teamOrPlayer, score: e.score, rank: e.rank }); setEditId(e._id); }} className="text-xs border border-gray-200 dark:border-gray-700 px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 transform hover:scale-105">Edit</button>
+                      {e.hype > 0 && (
+                        <button onClick={() => handleResetHype(e._id, e.teamOrPlayer)} className="text-xs border border-yellow-200 dark:border-yellow-700 px-2 py-1 rounded text-yellow-700 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 hover:border-yellow-300 dark:hover:border-yellow-600 transition-all duration-200 transform hover:scale-105" title="Reset hype count">Reset ⭐</button>
+                      )}
                       <button onClick={() => handleDelete(e._id)} className="btn-danger text-xs transform hover:scale-105 transition-transform duration-200">Del</button>
                     </div>
                   </td>

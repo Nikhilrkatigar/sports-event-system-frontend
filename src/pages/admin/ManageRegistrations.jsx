@@ -5,6 +5,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { TableRowSkeleton } from '../../components/Skeletons';
 import { useAuth } from '../../context/AuthContext';
 import { hasPermission } from '../../utils/roles';
+import EditPlayerModal from '../../components/EditPlayerModal';
 
 const getFilenameFromContentDisposition = (headerValue, fallbackName) => {
   if (!headerValue) return fallbackName;
@@ -119,6 +120,8 @@ export default function ManageRegistrations() {
   const [downloadEvent, setDownloadEvent] = useState('');
   const [loading, setLoading] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(null);
+  const [editingPlayer, setEditingPlayer] = useState(null);
+  const [editingRegistrationId, setEditingRegistrationId] = useState(null);
   const { confirm } = useConfirm();
 
   const canEditRegistration = hasPermission(admin?.role, 'manage_registrations');
@@ -334,6 +337,54 @@ export default function ManageRegistrations() {
       toast.error(err.response?.data?.message || `Failed to ${action}`);
     } finally {
       setVerifyingPayment(null);
+    }
+  };
+
+  const updatePlayerDetails = async (formData) => {
+    if (!editingPlayer || !editingRegistrationId) return;
+
+    const previousRegistrations = registrations;
+    
+    // Update UI optimistically
+    setRegistrations(prev => prev.map(reg => {
+      if (reg._id !== editingRegistrationId) return reg;
+      return {
+        ...reg,
+        players: reg.players.map(player =>
+          player._id === editingPlayer._id
+            ? { ...player, ...formData }
+            : player
+        )
+      };
+    }));
+
+    try {
+      const res = await API.patch(
+        `/registrations/${editingRegistrationId}/players/${editingPlayer._id}`,
+        formData
+      );
+      const updatedPlayer = res.data?.player;
+      
+      // Update with server response
+      setRegistrations(prev => prev.map(reg => {
+        if (reg._id !== editingRegistrationId) return reg;
+        return {
+          ...reg,
+          players: reg.players.map(player =>
+            player._id === editingPlayer._id ? { ...player, ...updatedPlayer } : player
+          )
+        };
+      }));
+      
+      // Close modal only after successful API call
+      setEditingPlayer(null);
+      setEditingRegistrationId(null);
+      toast.success('Player details updated');
+    } catch (err) {
+      // Restore previous state on error
+      setRegistrations(previousRegistrations);
+      toast.error(err.response?.data?.message || 'Failed to update player');
+      // Keep modal open so user can retry
     }
   };
 
@@ -565,6 +616,7 @@ export default function ManageRegistrations() {
                                 <th className="text-left py-1">Gender</th>
                                 <th className="text-left py-1">Role</th>
                                 <th className="text-left py-1">Check-In</th>
+                                <th className="text-left py-1">Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -607,6 +659,19 @@ export default function ManageRegistrations() {
                                       )}
                                     </div>
                                   </td>
+                                  {canEditRegistration && (
+                                    <td className="py-1">
+                                      <button
+                                        onClick={() => {
+                                          setEditingPlayer(player);
+                                          setEditingRegistrationId(reg._id);
+                                        }}
+                                        className="text-[11px] text-blue-600 border border-blue-200 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 font-medium"
+                                      >
+                                        ✏️ Edit
+                                      </button>
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                             </tbody>
@@ -621,6 +686,18 @@ export default function ManageRegistrations() {
           </table>
         </div>
       </div>
+
+      {editingPlayer && editingRegistrationId && (
+        <EditPlayerModal
+          player={editingPlayer}
+          departments={[...new Set(registrations.flatMap(reg => reg.players.map(p => p.department).filter(Boolean)))].sort()}
+          onSave={updatePlayerDetails}
+          onClose={() => {
+            setEditingPlayer(null);
+            setEditingRegistrationId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -158,13 +158,37 @@ export default function ManageEvents() {
     }
   };
 
+  const exportEvents = async (type) => {
+    try {
+      const res = await API.get(`/events/export/${type}`, {
+        responseType: 'blob'
+      });
+      const filename = type === 'csv' ? 'All_Events.csv' : 'All_Events.xlsx';
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Download started');
+    } catch (err) {
+      toast.error('Failed to export events');
+    }
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Manage Events</h1>
-        <button onClick={() => { setForm(empty); setEditId(null); setShowForm(!showForm); }} className="btn-primary">
-          {showForm ? 'Cancel' : '+ Add Event'}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => exportEvents('csv')} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">📥 CSV</button>
+          <button onClick={() => exportEvents('excel')} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">📥 Excel</button>
+          <button onClick={() => { setForm(empty); setEditId(null); setShowForm(!showForm); }} className="btn-primary">
+            {showForm ? 'Cancel' : '+ Add Event'}
+          </button>
+        </div>
       </div>
 
       {showForm && (
