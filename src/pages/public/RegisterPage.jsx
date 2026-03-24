@@ -576,7 +576,7 @@ export default function RegisterPage() {
                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Full Name <span className="text-red-500">*</span></label>
                             <input
                               className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.name ? 'border-red-400 focus:ring-red-500/20' : ''}`}
-                              placeholder="e.g. John Doe"
+                              placeholder="e.g. Nikhil Katigar"
                               value={player.name}
                               onChange={e => updatePlayer(idx, 'name', e.target.value)}
                             />

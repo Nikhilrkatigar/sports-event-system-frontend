@@ -93,16 +93,20 @@ const getDownloadErrorMessage = async (error, fallback) => {
   }
 };
 
-const getPlayerRole = (player) => {
-  if (player.isTeamLeader) return 'Leader';
-  if (player.isSubstitute) return 'Substitute';
-  return 'Player';
-};
-
 const formatGender = (gender) => {
   if (gender === 'male') return 'Male';
   if (gender === 'female') return 'Female';
   return 'Unspecified';
+};
+
+const getPlayerRole = (player) => {
+  if (player.isSubstitute) {
+    return <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">Substitute</span>;
+  }
+  if (player.isTeamLeader) {
+    return <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">Leader</span>;
+  }
+  return <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full font-medium">Player</span>;
 };
 
 export default function ManageRegistrations() {
@@ -122,6 +126,7 @@ export default function ManageRegistrations() {
   const [verifyingPayment, setVerifyingPayment] = useState(null);
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [editingRegistrationId, setEditingRegistrationId] = useState(null);
+  const [addingPlayerForRegistration, setAddingPlayerForRegistration] = useState(null);
   const { confirm } = useConfirm();
 
   const canEditRegistration = hasPermission(admin?.role, 'manage_registrations');
@@ -388,6 +393,77 @@ export default function ManageRegistrations() {
     }
   };
 
+  const createNewPlayer = async (registrationId, formData) => {
+    const previousRegistrations = registrations;
+    
+    // Add player optimistically
+    setRegistrations(prev => prev.map(reg => {
+      if (reg._id !== registrationId) return reg;
+      const newPlayer = {
+        _id: Date.now().toString(), // Temporary ID
+        ...formData,
+        checkInStatus: false
+      };
+      return {
+        ...reg,
+        players: [...reg.players, newPlayer]
+      };
+    }));
+
+    try {
+      const res = await API.post(`/registrations/${registrationId}/players`, formData);
+      const updatedRegistration = res.data?.data;
+      
+      // Update with server response
+      setRegistrations(prev => prev.map(reg =>
+        reg._id === registrationId ? updatedRegistration : reg
+      ));
+      
+      setAddingPlayerForRegistration(null);
+      toast.success('Player added successfully');
+    } catch (err) {
+      setRegistrations(previousRegistrations);
+      toast.error(err.response?.data?.message || 'Failed to add player');
+    }
+  };
+
+  const deletePlayer = async (registrationId, playerId) => {
+    const confirmed = await confirm({
+      title: 'Remove Player',
+      message: 'Are you sure you want to remove this player from the registration?',
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      isDangerous: true
+    });
+    if (!confirmed) return;
+
+    const previousRegistrations = registrations;
+    
+    // Remove player optimistically
+    setRegistrations(prev => prev.map(reg => {
+      if (reg._id !== registrationId) return reg;
+      return {
+        ...reg,
+        players: reg.players.filter(p => p._id !== playerId)
+      };
+    }));
+
+    try {
+      const res = await API.delete(`/registrations/${registrationId}/players/${playerId}`);
+      const updatedRegistration = res.data?.data;
+      
+      // Update with server response
+      setRegistrations(prev => prev.map(reg =>
+        reg._id === registrationId ? updatedRegistration : reg
+      ));
+      
+      toast.success('Player removed successfully');
+    } catch (err) {
+      setRegistrations(previousRegistrations);
+      toast.error(err.response?.data?.message || 'Failed to remove player');
+    }
+  };
+
   const getPaymentStatusBadge = (status) => {
     switch (status) {
       case 'paid':
@@ -605,77 +681,100 @@ export default function ManageRegistrations() {
                     </tr>
                     {expanded === reg._id && (
                       <tr className="bg-blue-50">
-                        <td colSpan="8" className="px-6 py-3">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="text-gray-600">
-                                <th className="text-left py-1">Name</th>
-                                <th className="text-left py-1">UUCMS</th>
-                                <th className="text-left py-1">Phone</th>
-                                <th className="text-left py-1">Dept</th>
-                                <th className="text-left py-1">Gender</th>
-                                <th className="text-left py-1">Role</th>
-                                <th className="text-left py-1">Check-In</th>
-                                <th className="text-left py-1">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {reg.players.map((player) => (
-                                <tr key={player._id} className="border-t border-blue-200">
-                                  <td className="py-1">{player.name}</td>
-                                  <td className="py-1 font-mono">{player.uucms}</td>
-                                  <td className="py-1">{player.phone}</td>
-                                  <td className="py-1">{player.department}</td>
-                                  <td className="py-1">
-                                    {canEditRegistration ? (
-                                      <select
-                                        className="input-field text-xs bg-white"
-                                        value={player.gender || 'unspecified'}
-                                        onChange={e => updatePlayerGender(reg._id, player._id, e.target.value)}
-                                      >
-                                        <option value="male">Male</option>
-                                        <option value="female">Female</option>
-                                        <option value="unspecified">Unspecified</option>
-                                      </select>
-                                    ) : (
-                                      <span>{formatGender(player.gender)}</span>
-                                    )}
-                                  </td>
-                                  <td className="py-1">{getPlayerRole(player)}</td>
-                                  <td className="py-1">
-                                    <div className="flex items-center gap-2">
-                                      {player.checkInStatus ? (
-                                        <span className="text-green-600 font-semibold">Checked In</span>
-                                      ) : (
-                                        <span className="text-gray-400">Pending</span>
-                                      )}
-                                      {canCheckIn && (
-                                        <button
-                                          onClick={() => updateCheckInStatus(reg._id, player._id, !player.checkInStatus)}
-                                          className="text-[11px] border border-gray-200 bg-white px-2 py-1 rounded hover:bg-gray-50"
-                                        >
-                                          {player.checkInStatus ? 'Undo' : 'Check In'}
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                  {canEditRegistration && (
-                                    <td className="py-1">
-                                      <button
-                                        onClick={() => {
-                                          setEditingPlayer(player);
-                                          setEditingRegistrationId(reg._id);
-                                        }}
-                                        className="text-[11px] text-blue-600 border border-blue-200 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 font-medium"
-                                      >
-                                        ✏️ Edit
-                                      </button>
-                                    </td>
-                                  )}
+                        <td colSpan="8" className="px-6 py-4">
+                          <div className="space-y-3">
+                            {/* Add Player Button (Team events only) */}
+                            {reg.eventId?.type === 'team' && canEditRegistration && (
+                              <button
+                                onClick={() => setAddingPlayerForRegistration(reg._id)}
+                                className="mb-3 text-xs bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 font-medium"
+                              >
+                                + Add Player
+                              </button>
+                            )}
+
+                            {/* Players List */}
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-gray-600">
+                                  <th className="text-left py-1">Name</th>
+                                  <th className="text-left py-1">UUCMS</th>
+                                  <th className="text-left py-1">Phone</th>
+                                  <th className="text-left py-1">Dept</th>
+                                  <th className="text-left py-1">Gender</th>
+                                  <th className="text-left py-1">Role</th>
+                                  <th className="text-left py-1">Check-In</th>
+                                  <th className="text-left py-1">Actions</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                              </thead>
+                              <tbody>
+                                {reg.players.map((player) => (
+                                  <tr key={player._id} className="border-t border-blue-200">
+                                    <td className="py-2">{player.name}</td>
+                                    <td className="py-2 font-mono">{player.uucms}</td>
+                                    <td className="py-2">{player.phone}</td>
+                                    <td className="py-2">{player.department}</td>
+                                    <td className="py-2">
+                                      {canEditRegistration ? (
+                                        <select
+                                          className="input-field text-xs bg-white"
+                                          value={player.gender || 'unspecified'}
+                                          onChange={e => updatePlayerGender(reg._id, player._id, e.target.value)}
+                                        >
+                                          <option value="male">Male</option>
+                                          <option value="female">Female</option>
+                                          <option value="unspecified">Unspecified</option>
+                                        </select>
+                                      ) : (
+                                        <span>{formatGender(player.gender)}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2">{getPlayerRole(player)}</td>
+                                    <td className="py-2">
+                                      <div className="flex items-center gap-2">
+                                        {player.checkInStatus ? (
+                                          <span className="text-green-600 font-semibold">Checked In</span>
+                                        ) : (
+                                          <span className="text-gray-400">Pending</span>
+                                        )}
+                                        {canCheckIn && (
+                                          <button
+                                            onClick={() => updateCheckInStatus(reg._id, player._id, !player.checkInStatus)}
+                                            className="text-[11px] border border-gray-200 bg-white px-2 py-1 rounded hover:bg-gray-50"
+                                          >
+                                            {player.checkInStatus ? 'Undo' : 'Check In'}
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                    {canEditRegistration && (
+                                      <td className="py-2">
+                                        <div className="flex gap-1">
+                                          <button
+                                            onClick={() => {
+                                              setEditingPlayer(player);
+                                              setEditingRegistrationId(reg._id);
+                                            }}
+                                            className="text-[11px] text-blue-600 border border-blue-200 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 font-medium"
+                                          >
+                                            ✏️ Edit
+                                          </button>
+                                          {reg.eventId?.type === 'team' && (
+                                            <button
+                                              onClick={() => deletePlayer(reg._id, player._id)}
+                                              className="text-[11px] text-red-600 border border-red-200 bg-red-50 px-2 py-1 rounded hover:bg-red-100 font-medium"
+                                            >
+                                              × Remove
+                                            </button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -691,11 +790,22 @@ export default function ManageRegistrations() {
         <EditPlayerModal
           player={editingPlayer}
           departments={[...new Set(registrations.flatMap(reg => reg.players.map(p => p.department).filter(Boolean)))].sort()}
+          mode="edit"
           onSave={updatePlayerDetails}
+          onDelete={(playerId) => deletePlayer(editingRegistrationId, playerId)}
           onClose={() => {
             setEditingPlayer(null);
             setEditingRegistrationId(null);
           }}
+        />
+      )}
+
+      {addingPlayerForRegistration && (
+        <EditPlayerModal
+          departments={[...new Set(registrations.flatMap(reg => reg.players.map(p => p.department).filter(Boolean)))].sort()}
+          mode="add"
+          onSave={(formData) => createNewPlayer(addingPlayerForRegistration, formData)}
+          onClose={() => setAddingPlayerForRegistration(null)}
         />
       )}
     </div>

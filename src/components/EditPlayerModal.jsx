@@ -1,16 +1,26 @@
 import { useState } from 'react';
 
-export default function EditPlayerModal({ player, departments, onSave, onClose }) {
+export default function EditPlayerModal({ 
+  player, 
+  departments, 
+  onSave, 
+  onClose,
+  onDelete,
+  mode = 'edit' // 'edit' or 'add'
+}) {
   const [formData, setFormData] = useState({
     name: player?.name || '',
     phone: player?.phone || '',
     uucms: player?.uucms || '',
     department: player?.department || '',
-    gender: player?.gender || 'unspecified'
+    gender: player?.gender || 'unspecified',
+    isTeamLeader: player?.isTeamLeader || false,
+    isSubstitute: player?.isSubstitute || false
   });
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleChange = (field, value) => {
     // Auto-convert UUCMS to uppercase
@@ -23,6 +33,20 @@ export default function EditPlayerModal({ player, departments, onSave, onClose }
         return newErrors;
       });
     }
+  };
+
+  const handleRoleChange = (roleType, value) => {
+    setFormData(prev => {
+      const updated = { ...prev };
+      if (roleType === 'substitute') {
+        updated.isSubstitute = value;
+        // If becoming substitute, can't be leader
+        if (value) updated.isTeamLeader = false;
+      } else if (roleType === 'leader' && !updated.isSubstitute) {
+        updated.isTeamLeader = value;
+      }
+      return updated;
+    });
   };
 
   const validate = () => {
@@ -51,11 +75,24 @@ export default function EditPlayerModal({ player, departments, onSave, onClose }
     }
   };
 
+  const handleDelete = async () => {
+    if (mode === 'edit' && onDelete) {
+      setDeleting(true);
+      try {
+        await onDelete(player._id);
+      } finally {
+        setDeleting(false);
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div className="border-b border-gray-200 px-6 py-4">
-          <h2 className="text-xl font-bold text-gray-900">Edit Player Details</h2>
+          <h2 className="text-xl font-bold text-gray-900">
+            {mode === 'add' ? 'Add New Player' : 'Edit Player Details'}
+          </h2>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -130,19 +167,68 @@ export default function EditPlayerModal({ player, departments, onSave, onClose }
             </select>
           </div>
 
+          {/* Player Role */}
+          <div className="border-t pt-4 mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3">Player Role</label>
+            <div className="space-y-2">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="role"
+                  checked={!formData.isSubstitute && formData.isTeamLeader}
+                  onChange={() => handleRoleChange('leader', true)}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700">Team Leader (Main Player)</span>
+              </label>
+              
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="role"
+                  checked={!formData.isSubstitute && !formData.isTeamLeader}
+                  onChange={() => handleRoleChange('leader', false)}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700">Main Player</span>
+              </label>
+              
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="role"
+                  checked={formData.isSubstitute}
+                  onChange={() => handleRoleChange('substitute', true)}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700">Substitute</span>
+              </label>
+            </div>
+          </div>
+
           {/* Buttons */}
           <div className="flex gap-3 pt-4 border-t border-gray-200">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || deleting}
               className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving...' : mode === 'add' ? 'Add Player' : 'Save Changes'}
             </button>
+            {mode === 'edit' && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving || deleting}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium text-sm"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
-              disabled={saving}
+              disabled={saving || deleting}
               className="flex-1 bg-gray-200 text-gray-900 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium text-sm"
             >
               Cancel
