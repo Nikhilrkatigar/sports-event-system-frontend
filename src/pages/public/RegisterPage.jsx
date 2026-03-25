@@ -3,7 +3,9 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import Navbar from '../../components/public/Navbar';
+import TermsModal from '../../components/public/TermsModal';
 import API from '../../utils/api';
+import { useTranslation } from '../../hooks/useTranslation';
 import { FormSkeleton } from '../../components/Skeletons';
 import {
   canRegisterForEvent,
@@ -45,6 +47,7 @@ const getSafeRegistrationQrValue = (registration) => {
 };
 
 export default function RegisterPage() {
+  const { t } = useTranslation();
   const { eventId } = useParams();
   const [events, setEvents] = useState([]);
   const [departments, setDepartments] = useState(DEFAULT_DEPARTMENTS);
@@ -58,6 +61,13 @@ export default function RegisterPage() {
   const [uploadingScreenshot, setUploadingScreenshot] = useState(false);
   const [expandedPlayer, setExpandedPlayer] = useState(0);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [playerSingleEventCount, setPlayerSingleEventCount] = useState(null);
+  const [fetchingPlayerStatus, setFetchingPlayerStatus] = useState(false);
+  const [termsContent, setTermsContent] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [maxPlayersPerTeam, setMaxPlayersPerTeam] = useState(5);
+  const [maxSingleEventRegistrations, setMaxSingleEventRegistrations] = useState(2);
 
   useEffect(() => {
     Promise.all([API.get('/events'), API.get('/settings')])
@@ -66,6 +76,15 @@ export default function RegisterPage() {
         setEvents(visibleEvents);
         const cmsDepartments = settingsRes.data?.departments;
         if (Array.isArray(cmsDepartments) && cmsDepartments.length) setDepartments(cmsDepartments);
+        
+        // Set registration limits from settings
+        if (settingsRes.data?.maxPlayersPerTeam) setMaxPlayersPerTeam(settingsRes.data.maxPlayersPerTeam);
+        if (settingsRes.data?.maxSingleEventRegistrations) setMaxSingleEventRegistrations(settingsRes.data.maxSingleEventRegistrations);
+        
+        // Set terms and conditions from settings
+        const terms = settingsRes.data?.termsAndConditions || 'By registering for this event, you agree to abide by all rules and regulations.';
+        setTermsContent(terms);
+        setShowTermsModal(true);
 
         if (eventId) {
           const event = visibleEvents.find((item) => item._id === eventId);
@@ -81,6 +100,7 @@ export default function RegisterPage() {
   const selectEvent = (event) => {
     setSelectedEvent(event);
     setTeamName('');
+    setPlayerSingleEventCount(null);
     if (event.type === 'team') {
       const nextPlayers = Array.from({ length: event.teamSize }, (_, index) => ({ ...emptyPlayer(), isTeamLeader: index === 0 }));
       setPlayers(nextPlayers);
@@ -93,6 +113,19 @@ export default function RegisterPage() {
     // Auto-convert UUCMS to uppercase
     const finalValue = field === 'uucms' ? String(value || '').toUpperCase() : value;
     setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, [field]: finalValue } : player));
+
+    // Check player's registration status for single events
+    if (field === 'uucms' && selectedEvent?.type === 'single' && finalValue) {
+      setFetchingPlayerStatus(true);
+      API.get(`/registrations/player/${finalValue}`)
+        .then(res => {
+          const existingRegs = res.data || [];
+          const singleEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'single');
+          setPlayerSingleEventCount(singleEventRegs.length);
+        })
+        .catch(() => setPlayerSingleEventCount(null))
+        .finally(() => setFetchingPlayerStatus(false));
+    }
   };
 
   const setTeamLeader = (idx) => {
@@ -136,42 +169,60 @@ export default function RegisterPage() {
 
   const handleSubmit = async () => {
     setSubmitAttempted(true);
-    if (!selectedEvent) return toast.error('Please select an event');
-    if (!canRegisterForEvent(selectedEvent)) return toast.error('Registration is not open for this event');
+    if (!selectedEvent) return toast.error(t('selectEventError'));
+    if (!canRegisterForEvent(selectedEvent)) return toast.error(t('registrationNotOpen'));
 
     if (selectedEvent.type === 'team' && !teamName.trim()) {
-      return toast.error('Please enter a team name');
+      return toast.error(t('teamNamePlaceholder'));
     }
 
     for (let i = 0; i < players.length; i++) {
       const player = players[i];
       if (!player.name || !player.uucms || !player.phone || !player.department || !player.gender) {
-        return toast.error(`Please fill all fields for Player ${i + 1}`);
+        return toast.error(t('fillAllFields').replace('{number}', i + 1));
       }
     }
 
     const mainPlayers = players.filter(player => !player.isSubstitute);
     if (selectedEvent.type === 'team') {
       if (mainPlayers.length !== Number(selectedEvent.teamSize || 1)) {
-        return toast.error(`Exactly ${selectedEvent.teamSize} main players are required`);
+        return toast.error(t('exactlyPlayersRequired').replace('{count}', selectedEvent.teamSize));
       }
       const leaderCount = mainPlayers.filter(player => player.isTeamLeader).length;
-      if (leaderCount !== 1) return toast.error('Please choose exactly one team leader');
+      if (leaderCount !== 1) return toast.error(t('chooseOneTeamLeader'));
     } else if (mainPlayers.length !== 1) {
-      return toast.error('Single events accept only one participant');
+      return toast.error(t('singleEventOneParticipant'));
+    } else {
+      // For single events, check if player already has 2+ single-player event registrations
+      const mainPlayer = mainPlayers[0];
+      try {
+        const playerRegsRes = await API.get(`/registrations/player/${mainPlayer.uucms}`);
+        const existingRegs = playerRegsRes.data || [];
+        const singleEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'single');
+        
+        if (singleEventRegs.length >= 2) {
+          return toast.error(
+            `Player ${mainPlayer.name} has already registered for ${singleEventRegs.length} single-player event(s). ` +
+            `Maximum allowed is 2 individual events. You can still register for team events (unlimited).`
+          );
+        }
+      } catch (err) {
+        // If API endpoint doesn't exist, proceed with backend validation only
+        console.warn('Could not fetch player registrations for validation', err);
+      }
     }
 
     setLoading(true);
     try {
-      const res = await API.post('/registrations', {
+    const res = await API.post('/registrations', {
         eventId: selectedEvent._id,
         players,
         teamName: selectedEvent.type === 'team' ? teamName : null
       });
       setSuccess(res.data);
-      toast.success('Registered successfully');
+      toast.success(t('registeredSuccessfully'));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration failed');
+      toast.error(err.response?.data?.message || t('registrationFailed'));
     } finally {
       setLoading(false);
     }
@@ -255,19 +306,19 @@ export default function RegisterPage() {
         <Navbar />
         <div className="max-w-4xl mx-auto px-4 py-12">
           <div className="bg-white dark:bg-dark-card rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-dark-border text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Registration Successful</h2>
-            {success.teamId && <p className="text-blue-700 dark:text-blue-400 font-semibold mb-4">Team ID: {success.teamId}</p>}
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('registrationSuccessfulMsg')}</h2>
+            {success.teamId && <p className="text-blue-700 dark:text-blue-400 font-semibold mb-4">{t('teamIdLabel')}: {success.teamId}</p>}
 
             {success.paymentStatus === 'pending' && (
               <div className="mb-6 space-y-4">
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl">
-                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-300 mb-2">⏳ Payment Pending</p>
-                  <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-4">Your registration is complete. Please complete the payment to finalize your participation.</p>
+                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-300 mb-2">⏳ {t('paymentPending')}</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-4">{t('paymentPendingMsg')}</p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {success.eventId?.paymentQRCode && (
                       <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-yellow-200 dark:border-gray-700">
-                        <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-300 mb-2">📱 Scan QR Code</p>
+                        <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-300 mb-2">📱 {t('scanQRCode')}</p>
                         <img src={success.eventId.paymentQRCode} alt="Payment QR Code" className="w-full h-32 object-contain" />
                       </div>
                     )}
@@ -279,7 +330,7 @@ export default function RegisterPage() {
                           rel="noopener noreferrer"
                           className="inline-block w-full bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition-colors"
                         >
-                          💳 Pay ₹{success.eventId.registrationFee} via UPI
+                          💳 {t('paymentViUPI').replace('{fee}', success.eventId.registrationFee)}
                         </a>
                       </div>
                     )}
@@ -291,8 +342,8 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
-                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📸 Upload Payment Proof</p>
-                  <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">Upload a screenshot of your payment confirmation</p>
+                  <p className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-2">📸 {t('uploadPaymentProof')}</p>
+                  <p className="text-xs text-blue-700 dark:text-blue-400 mb-3">{t('uploadScreenshotMsg')}</p>
                   <div className="space-y-2">
                     <input
                       type="file"
@@ -301,14 +352,14 @@ export default function RegisterPage() {
                       onChange={e => setScreenshotFile(e.target.files[0])}
                       disabled={uploadingScreenshot}
                     />
-                    {screenshotFile && <p className="text-xs text-blue-600 dark:text-blue-400">✓ File selected: {screenshotFile.name}</p>}
-                    {success.paymentScreenshot && !screenshotFile && <p className="text-xs text-green-600 dark:text-green-400">✓ Screenshot already uploaded</p>}
+                    {screenshotFile && <p className="text-xs text-blue-600 dark:text-blue-400">✓ {t('fileSelected')}: {screenshotFile.name}</p>}
+                    {success.paymentScreenshot && !screenshotFile && <p className="text-xs text-green-600 dark:text-green-400">✓ {t('screenshotAlreadyUploaded')}</p>}
                     <button
                       onClick={uploadPaymentScreenshot}
                       disabled={uploadingScreenshot || !screenshotFile}
                       className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                     >
-                      {uploadingScreenshot ? 'Uploading...' : 'Upload Screenshot'}
+                      {uploadingScreenshot ? t('uploading') : t('uploadScreenshot')}
                     </button>
                   </div>
                 </div>
@@ -317,20 +368,20 @@ export default function RegisterPage() {
 
             {success.paymentStatus === 'paid' && (
               <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl">
-                <p className="text-sm font-semibold text-green-900 dark:text-green-300">✓ Payment Verified</p>
-                <p className="text-xs text-green-700 dark:text-green-400 mt-1">Your payment has been verified successfully.</p>
+                <p className="text-sm font-semibold text-green-900 dark:text-green-300">✓ {t('paymentVerified')}</p>
+                <p className="text-xs text-green-700 dark:text-green-400 mt-1">{t('paymentVerifiedMsg')}</p>
               </div>
             )}
 
             {success.paymentStatus === 'free' && (
               <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-xl">
-                <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">✓ No Payment Required</p>
-                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">This is a free event.</p>
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">✓ {t('noPaymentRequired')}</p>
+                <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">{t('noPaymentRequiredMsg')}</p>
               </div>
             )}
 
             <div className="max-w-xs mx-auto border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-8">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{success.teamId ? 'Team QR Code' : 'Participant QR Code'}</p>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{success.teamId ? t('teamQRCode') : t('participantQRCode')}</p>
               <div id="registration-qr" className="flex justify-center bg-white p-3 rounded-lg border border-gray-200 dark:border-gray-600">
                 {isImageDataUrl(source) ? (
                   <img src={source} alt="Registration QR code" className="h-[220px] w-[220px]" />
@@ -343,7 +394,7 @@ export default function RegisterPage() {
                 onClick={downloadRegistrationQr}
                 className="mt-4 w-full border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                Download QR
+                {t('downloadQR')}
               </button>
             </div>
 
@@ -352,18 +403,18 @@ export default function RegisterPage() {
                 <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 text-left">
                   <p className="font-semibold text-gray-900 dark:text-white mb-1">
                     {player.name}
-                    {player.isTeamLeader && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">Leader</span>}
-                    {player.isSubstitute && <span className="ml-2 text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full">Substitute</span>}
+                    {player.isTeamLeader && <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">{t('teamLeader')}</span>}
+                    {player.isSubstitute && <span className="ml-2 text-xs bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 px-2 py-0.5 rounded-full">{t('substitute')}</span>}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{player.uucms}</p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{player.department}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Gender: {player.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : 'Unspecified'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Gender: {player.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : t('unspecified')}</p>
                 </div>
               ))}
             </div>
 
             <button onClick={() => { setSuccess(null); setPlayers([emptyPlayer()]); setSelectedEvent(null); }} className="btn-primary mt-8 px-8">
-              Register Another
+              {t('registerAnother')}
             </button>
           </div>
         </div>
@@ -376,10 +427,21 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
+      {/* Terms Modal */}
+      <TermsModal 
+        isOpen={showTermsModal} 
+        termsContent={termsContent}
+        onAccept={() => {
+          setTermsAccepted(true);
+          setShowTermsModal(false);
+        }}
+        onClose={() => setShowTermsModal(false)}
+      />
+      
       <Navbar />
       <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">Event Registration</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm sm:text-base">Fill in player details to register</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-1">{t('eventRegistration')}</h1>
+        <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm sm:text-base">{t('fillInPlayerDetails')}</p>
 
         {pageLoading ? (
           <div className="space-y-6">
@@ -388,10 +450,23 @@ export default function RegisterPage() {
               <FormSkeleton />
             </div>
           </div>
+        ) : !termsAccepted ? (
+          <div className="card dark:bg-dark-card dark:border-dark-border bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">📋 Terms & Conditions Required</h3>
+              <p className="text-blue-700 dark:text-blue-400 mb-4">Please accept the Terms & Conditions to proceed with registration</p>
+              <button
+                onClick={() => setShowTermsModal(true)}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+              >
+                View Terms & Conditions
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             <div className="card dark:bg-dark-card dark:border-dark-border mb-6">
-              <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">Step 1: Select Event</h2>
+              <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-3">{t('stepOneSelectEvent')}</h2>
               <select
                 className="input-field w-full text-base"
                 value={selectedEvent?._id || ''}
@@ -400,7 +475,7 @@ export default function RegisterPage() {
                   if (event) selectEvent(event);
                 }}
               >
-                <option value="">-- Choose an Event --</option>
+                <option value="">{t('chooseEvent')}</option>
                 {events.map(event => (
                   <option key={event._id} value={event._id}>
                     {event.title} ({getEventStatusMeta(event).label})
@@ -414,31 +489,31 @@ export default function RegisterPage() {
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <h2 className="font-semibold text-gray-900 dark:text-white">{selectedEvent.title}</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{selectedEvent.type === 'team' ? `${selectedEvent.teamSize} main players required` : 'Single participant event'}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{selectedEvent.type === 'team' ? `${selectedEvent.teamSize} ${t('mainPlayersRequired')}` : t('singleParticipantEvent')}</p>
                   </div>
                   <span className={`text-xs border px-2 py-1 rounded-full ${statusMeta?.className}`}>
                     {statusMeta?.label}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600 dark:text-gray-400">
-                  <div>Remaining slots: <span className="dark:text-gray-300">{selectedEvent.remainingSlots == null ? 'Unlimited' : selectedEvent.remainingSlots}</span></div>
-                  <div>Registered: <span className="dark:text-gray-300">{selectedEvent.type === 'team' ? `${selectedEvent.teamCount || 0} teams` : `${selectedEvent.playerCount || 0} players`}</span></div>
-                  {selectedEvent.registrationDeadline && <div>Deadline: <span className="dark:text-gray-300">{formatEventDeadline(selectedEvent.registrationDeadline)}</span></div>}
-                  {selectedEvent.date && <div>Event date: <span className="dark:text-gray-300">{new Date(selectedEvent.date).toLocaleDateString()}</span></div>}
+                  <div>{t('remainingSlots')}: <span className="dark:text-gray-300">{selectedEvent.remainingSlots == null ? t('unlimited') : selectedEvent.remainingSlots}</span></div>
+                  <div>{t('registeredCount')}: <span className="dark:text-gray-300">{selectedEvent.type === 'team' ? `${selectedEvent.teamCount || 0} ${t('teamsRegistered')}` : `${selectedEvent.playerCount || 0} ${t('playersRegistered')}`}</span></div>
+                  {selectedEvent.registrationDeadline && <div>{t('deadline')}: <span className="dark:text-gray-300">{formatEventDeadline(selectedEvent.registrationDeadline)}</span></div>}
+                  {selectedEvent.date && <div>{t('eventDate')}: <span className="dark:text-gray-300">{new Date(selectedEvent.date).toLocaleDateString()}</span></div>}
                 </div>
                 {selectedEvent.type === 'team' && (selectedEvent.maleRequired > 0 || selectedEvent.femaleRequired > 0) && (
                   <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 rounded-lg">
-                    <p className="text-sm font-medium text-purple-900 dark:text-purple-300 mb-2">Gender Composition Required:</p>
+                    <p className="text-sm font-medium text-purple-900 dark:text-purple-300 mb-2">{t('genderCompositionRequired')}:</p>
                     <div className="flex gap-4 text-sm text-purple-700 dark:text-purple-400">
                       {selectedEvent.maleRequired > 0 && (
                         <div className="flex items-center gap-2">
-                          <span>♂ Males: {genderComposition.maleCount}/{selectedEvent.maleRequired}</span>
+                          <span>♂ {t('males')}: {genderComposition.maleCount}/{selectedEvent.maleRequired}</span>
                           {genderComposition.maleCount >= selectedEvent.maleRequired && <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>}
                         </div>
                       )}
                       {selectedEvent.femaleRequired > 0 && (
                         <div className="flex items-center gap-2">
-                          <span>♀ Females: {genderComposition.femaleCount}/{selectedEvent.femaleRequired}</span>
+                          <span>♀ {t('females')}: {genderComposition.femaleCount}/{selectedEvent.femaleRequired}</span>
                           {genderComposition.femaleCount >= selectedEvent.femaleRequired && <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>}
                         </div>
                       )}
@@ -465,10 +540,10 @@ export default function RegisterPage() {
                 {selectedEvent.registrationFee > 0 && (
                   <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-lg">
                     <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
-                      💳 Registration Fee: ₹{isEventRegisterable ? selectedEvent.registrationFee : 'XXX'}
+                      💳 {t('registrationFee')}: ₹{isEventRegisterable ? selectedEvent.registrationFee : 'XXX'}
                     </p>
                     {selectedEvent.upiPaymentLink && (
-                      <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">Payment link available after registration</p>
+                      <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">{t('paymentLinkAvailable')}</p>
                     )}
                   </div>
                 )}
@@ -478,7 +553,7 @@ export default function RegisterPage() {
             {selectedEvent && !isEventRegisterable && (
               <div className="card dark:bg-dark-card dark:border-dark-border mb-6 text-center">
                 <div className="inline-flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-400 px-5 py-3 rounded-xl text-sm font-semibold">
-                  Registration is not open for this event right now
+                  {t('registrationNotOpen')}
                 </div>
               </div>
             )}
@@ -486,7 +561,7 @@ export default function RegisterPage() {
             {selectedEvent && isEventRegisterable && (
               <div className="card dark:bg-dark-card dark:border-dark-border">
                 <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 text-sm sm:text-base">
-                  Step 2: Player Details - <span className="text-blue-600 dark:text-blue-400">{selectedEvent.title}</span>
+                  {t('stepTwoPlayerDetails')} - <span className="text-blue-600 dark:text-blue-400">{selectedEvent.title}</span>
                 </h2>
 
                 {selectedEvent.type === 'team' && (
@@ -586,7 +661,7 @@ export default function RegisterPage() {
                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">UUCMS No. <span className="text-red-500">*</span></label>
                             <input
                               className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white font-mono ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
-                              placeholder="e.g. U02CG23S0001 (automatically UPPERCASE)"
+                              placeholder="e.g. U02CG23S0001 "
                               value={player.uucms}
                               onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
                             />
@@ -646,15 +721,59 @@ export default function RegisterPage() {
                   </div>
                 )}
 
+                {selectedEvent.type === 'single' && playerSingleEventCount !== null && (
+                  <div className={`mt-6 p-4 rounded-xl border ${
+                    playerSingleEventCount >= maxSingleEventRegistrations
+                      ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50'
+                      : playerSingleEventCount === maxSingleEventRegistrations - 1
+                      ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800/50'
+                      : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/50'
+                  }`}>
+                    {playerSingleEventCount >= maxSingleEventRegistrations ? (
+                      <>
+                        <p className="text-sm font-semibold text-red-900 dark:text-red-300">
+                          🚫 Single Event Limit Reached
+                        </p>
+                        <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                          This player has already registered for {playerSingleEventCount} individual event(s). 
+                          Maximum allowed is {maxSingleEventRegistrations} single-player events. You can register for unlimited team events instead.
+                        </p>
+                      </>
+                    ) : playerSingleEventCount === 1 ? (
+                      <>
+                        <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-300">
+                          ⚠️ {playerSingleEventCount}/{maxSingleEventRegistrations} Single Events Registered
+                        </p>
+                        <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
+                          This player can register for {maxSingleEventRegistrations - playerSingleEventCount} more individual event(s). After this, only team events will be available.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-green-900 dark:text-green-300">
+                          ✓ No Single Events Registered Yet
+                        </p>
+                        <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                          This player can register for up to {maxSingleEventRegistrations} individual events.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || (selectedEvent?.type === 'single' && playerSingleEventCount >= maxSingleEventRegistrations)}
                   className="btn-primary mt-8 w-full py-4 text-base font-bold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex items-center justify-center gap-2 group disabled:opacity-75 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
                       <span>Registering...</span>
+                    </>
+                  ) : selectedEvent?.type === 'single' && playerSingleEventCount >= maxSingleEventRegistrations ? (
+                    <>
+                      <span>🚫 Single Event Limit Reached</span>
                     </>
                   ) : (
                     <>

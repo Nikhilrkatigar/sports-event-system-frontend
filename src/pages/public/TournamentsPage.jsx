@@ -4,6 +4,13 @@ import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
 import { CardSkeleton } from '../../components/Skeletons';
 
+const formatLabel = (format) => {
+  if (format === 'single_elimination') return 'Single Elimination';
+  if (format === 'round_robin') return 'Round Robin';
+  if (format === 'track_heats') return 'Track Heats';
+  return format;
+};
+
 export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +26,7 @@ export default function TournamentsPage() {
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Tournament Brackets</h1>
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Tournament Schedules</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-2">Live match schedules and results</p>
         </div>
 
@@ -35,7 +42,7 @@ export default function TournamentsPage() {
         ) : tournaments.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-gray-500 dark:text-gray-400 text-lg">No tournaments available yet</p>
-            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Check back soon for tournament brackets.</p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Check back soon for brackets or track heats.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -50,7 +57,7 @@ export default function TournamentsPage() {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Format</span>
                       <span className="text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
-                        {tournament.format === 'single_elimination' ? 'Single Elimination' : 'Round Robin'}
+                        {formatLabel(tournament.format)}
                       </span>
                     </div>
 
@@ -88,7 +95,7 @@ export default function TournamentsPage() {
                     to={`/tournaments/${tournament.eventId?._id}`}
                     className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95"
                   >
-                    View Bracket
+                    {tournament.format === 'track_heats' ? 'View Heats' : 'View Bracket'}
                   </Link>
                 </div>
               </div>

@@ -152,23 +152,30 @@ export default function TimelinePage() {
       <Navbar />
 
       {/* ── Light Theme Hero ── */}
-      <section className="bg-gradient-to-br from-blue-900 via-sky-700 to-cyan-700 dark:from-gray-900 dark:via-blue-900 dark:to-gray-900 text-white py-16 px-4 relative overflow-hidden transition-colors">
+      <section className="bg-gradient-to-br from-blue-900 via-sky-700 to-cyan-700 dark:from-gray-900 dark:via-blue-900 dark:to-gray-900 text-white py-6 md:py-16 px-4 relative overflow-hidden transition-colors">
         {/* Subtle background patterns */}
         <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjIiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] [background-size:24px_24px]"></div>
         
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-blue-50 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 uppercase tracking-wider animate-slide-down border border-white/30">
+          {/* Mobile: Minimal header, Desktop: Full header */}
+          <div className="hidden md:inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm text-blue-50 text-xs font-semibold px-4 py-1.5 rounded-full mb-6 uppercase tracking-wider animate-slide-down border border-white/30">
             <span>🗓️</span> Event Schedule
           </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold mb-4 animate-slide-up text-white shadow-sm">
-            {settings?.eventName || 'Annual Sports Day'} Timeline
+          
+          <h1 className="text-xl md:text-5xl font-extrabold mb-2 md:mb-4 animate-slide-up text-white shadow-sm">
+            <span className="md:hidden">{settings?.eventName || 'Annual Sports Day'}</span>
+            <span className="hidden md:inline">{settings?.eventName || 'Annual Sports Day'} Timeline</span>
           </h1>
-          {eventDate && (
-            <p className="text-xl text-blue-100 mb-2 animate-slide-up" style={{ animationDelay: '0.1s' }}>{eventDate}</p>
-          )}
-          {settings?.venue && (
-            <p className="text-blue-200 mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>📍 {settings.venue}</p>
-          )}
+          
+          {/* Desktop only: date and venue */}
+          <div className="hidden md:block">
+            {eventDate && (
+              <p className="text-xl text-blue-100 mb-2 animate-slide-up" style={{ animationDelay: '0.1s' }}>{eventDate}</p>
+            )}
+            {settings?.venue && (
+              <p className="text-blue-200 mb-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>📍 {settings.venue}</p>
+            )}
+          </div>
         </div>
       </section>
 

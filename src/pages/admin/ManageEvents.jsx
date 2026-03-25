@@ -11,6 +11,7 @@ const empty = {
   status: 'draft',
   scoreOrder: 'desc',
   teamSize: 2,
+  lanesPerHeat: 8,
   maleRequired: 0,
   femaleRequired: 0,
   allowedGenders: ['male', 'female'],
@@ -102,6 +103,7 @@ export default function ManageEvents() {
       ...event,
       scoreOrder: event.scoreOrder || 'desc',
       status: event.status || 'draft',
+      lanesPerHeat: event.lanesPerHeat || 8,
       allowedGenders: event.allowedGenders || ['male', 'female'],
       allowedDepartments: event.allowedDepartments || [],
       registrationFee: event.registrationFee || 0,
@@ -223,6 +225,18 @@ export default function ManageEvents() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Team Size</label>
                 <input type="number" className="input-field" value={form.teamSize} onChange={e => setForm({ ...form, teamSize: e.target.value })} />
+              </div>
+            )}
+            {form.type === 'single' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Lanes Per Heat <span className="text-gray-400 text-xs">(for track events)</span></label>
+                <select className="input-field" value={form.lanesPerHeat} onChange={e => setForm({ ...form, lanesPerHeat: parseInt(e.target.value) })}>
+                  <option value={5}>5 Lanes</option>
+                  <option value={6}>6 Lanes</option>
+                  <option value={8}>8 Lanes (Standard)</option>
+                  <option value={10}>10 Lanes</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">⚡ Players will be distributed across multiple heats if needed</p>
               </div>
             )}
             {form.type === 'team' && (

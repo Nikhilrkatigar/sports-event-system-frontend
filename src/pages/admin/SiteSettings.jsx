@@ -7,7 +7,11 @@ const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tec
 export default function SiteSettings() {
   const [form, setForm] = useState({ 
     collegeName: '', eventName: '', venue: '', description: '', announcement: '', eventDate: '', collegeLogo: '', 
-    departments: DEFAULT_DEPARTMENTS.join('\n') 
+    departments: DEFAULT_DEPARTMENTS.join('\n'),
+    termsAndConditions: '',
+    maxSingleEventRegistrations: 2,
+    maxTeamEventRegistrations: 999,
+    maxPlayersPerTeam: 5
   });
   const [file, setFile] = useState(null);
   const [mode, setMode] = useState('url');
@@ -22,6 +26,7 @@ export default function SiteSettings() {
         eventDate: d.eventDate ? d.eventDate.substring(0, 10) : '',
         collegeLogo: d.collegeLogo || '',
         announcement: d.announcement || '',
+        termsAndConditions: d.termsAndConditions || '',
         departments: departments.join('\n')
       });
     });
@@ -37,6 +42,7 @@ export default function SiteSettings() {
         .map(d => d.trim())
         .filter(Boolean);
       fd.append('departments', JSON.stringify(departmentList.length ? departmentList : DEFAULT_DEPARTMENTS));
+      fd.append('termsAndConditions', form.termsAndConditions);
       if (mode === 'upload' && file) fd.append('collegeLogo', file);
       else if (mode === 'url' && form.collegeLogo) fd.append('collegeLogo', form.collegeLogo);
       await API.put('/settings', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -86,6 +92,63 @@ export default function SiteSettings() {
               onChange={e => setForm({ ...form, departments: e.target.value })}
               placeholder={`BCA\nMCA\nMBA`}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Terms & Conditions</label>
+            <textarea
+              className="input-field"
+              rows="8"
+              value={form.termsAndConditions}
+              onChange={e => setForm({ ...form, termsAndConditions: e.target.value })}
+              placeholder="Enter the Terms & Conditions that users must accept before registration..."
+            />
+            <p className="text-xs text-gray-500 mt-1">This will be shown as a popup when users visit the registration page.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2"><strong>Registration Limits</strong></label>
+            <p className="text-xs text-gray-500 mb-3">Configure maximum player registrations for different event types</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max Single Event Registrations</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="10" 
+                  className="input-field" 
+                  value={form.maxSingleEventRegistrations} 
+                  onChange={e => setForm({ ...form, maxSingleEventRegistrations: Math.max(1, parseInt(e.target.value) || 1) })}
+                />
+                <p className="text-xs text-gray-400 mt-1">Max single-player events per student</p>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max Team Event Registrations</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  className="input-field" 
+                  value={form.maxTeamEventRegistrations} 
+                  onChange={e => setForm({ ...form, maxTeamEventRegistrations: Math.max(1, parseInt(e.target.value) || 999) })}
+                />
+                <p className="text-xs text-gray-400 mt-1">Max team events per student (999 = unlimited)</p>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max Players Per Team</label>
+                <input 
+                  type="number" 
+                  min="1" 
+                  max="20" 
+                  className="input-field" 
+                  value={form.maxPlayersPerTeam} 
+                  onChange={e => setForm({ ...form, maxPlayersPerTeam: Math.max(1, parseInt(e.target.value) || 5) })}
+                />
+                <p className="text-xs text-gray-400 mt-1">Info only (per-event team size is configured separately)</p>
+              </div>
+            </div>
           </div>
 
           <div>

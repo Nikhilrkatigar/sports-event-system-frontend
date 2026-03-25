@@ -100,7 +100,7 @@ export default function EventDetailPage() {
                 <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tournament Info</div>
                 <div className="text-sm text-gray-700 dark:text-gray-300">Format: {event.type === 'team' ? 'Team event' : 'Individual event'}</div>
                 <div className="text-sm text-gray-700 dark:text-gray-300">Scoring: {event.scoreOrder === 'asc' ? 'Lower score wins' : 'Higher score wins'}</div>
-                <div className="text-sm text-gray-700 dark:text-gray-300">Bracket available: {hasTournament ? 'Yes' : 'Not yet'}</div>
+                <div className="text-sm text-gray-700 dark:text-gray-300">Schedule available: {hasTournament ? 'Yes' : 'Not yet'}</div>
               </div>
             </div>
 
@@ -142,7 +142,7 @@ export default function EventDetailPage() {
 
             {hasTournament && (
               <Link to={`/tournaments/${event._id}`} className="mt-3 inline-block text-center w-full py-3 text-base font-semibold rounded-xl bg-gradient-to-r from-yellow-500 to-orange-500 dark:from-yellow-600 dark:to-orange-600 text-white hover:from-yellow-600 hover:to-orange-600 transition-all shadow-sm">
-                View Tournament Bracket
+                View Tournament Schedule
               </Link>
             )}
           </div>
