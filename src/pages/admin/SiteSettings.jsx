@@ -36,18 +36,28 @@ export default function SiteSettings() {
     setLoading(true);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => { if (v && k !== 'collegeLogo' && k !== 'departments') fd.append(k, v); });
+      // Send all fields except collegeLogo and departments (handled separately)
+      Object.entries(form).forEach(([k, v]) => { 
+        if (k !== 'collegeLogo' && k !== 'departments' && k !== 'termsAndConditions' && v !== undefined && v !== null) {
+          fd.append(k, v);
+        }
+      });
+      // Handle departments
       const departmentList = form.departments
         .split('\n')
         .map(d => d.trim())
         .filter(Boolean);
       fd.append('departments', JSON.stringify(departmentList.length ? departmentList : DEFAULT_DEPARTMENTS));
-      fd.append('termsAndConditions', form.termsAndConditions);
+      // Handle termsAndConditions (only once)
+      fd.append('termsAndConditions', form.termsAndConditions || '');
+      // Handle logo
       if (mode === 'upload' && file) fd.append('collegeLogo', file);
       else if (mode === 'url' && form.collegeLogo) fd.append('collegeLogo', form.collegeLogo);
       await API.put('/settings', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success('Settings saved! Changes reflect on website.');
-    } catch { toast.error('Error saving settings'); }
+    } catch (err) { 
+      toast.error(err.response?.data?.message || 'Error saving settings');
+    }
     finally { setLoading(false); }
   };
 

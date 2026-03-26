@@ -561,6 +561,7 @@ export default function ManageRegistrations() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Event</th>
+                <th className="px-4 py-3 text-left text-gray-600 font-medium">Reg. Number</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Team ID</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Team Name</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Players</th>
@@ -573,15 +574,15 @@ export default function ManageRegistrations() {
             <tbody>
               {loading ? (
                 <>
-                  <TableRowSkeleton columns={7} />
-                  <TableRowSkeleton columns={7} />
-                  <TableRowSkeleton columns={7} />
-                  <TableRowSkeleton columns={7} />
-                  <TableRowSkeleton columns={7} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
+                  <TableRowSkeleton columns={8} />
                 </>
               ) : registrations.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan="9" className="px-4 py-8 text-center text-gray-500">
                     No registrations found
                   </td>
                 </tr>
@@ -590,6 +591,7 @@ export default function ManageRegistrations() {
                   <Fragment key={reg._id}>
                     <tr className="border-t border-gray-100 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{reg.eventId?.title || '-'}</td>
+                      <td className="px-4 py-3 text-gray-700 font-mono font-semibold text-sm">{reg.registrationNumber || '-'}</td>
                       <td className="px-4 py-3 text-gray-500 text-sm">{reg.teamId || '-'}</td>
                       <td className="px-4 py-3">
                         {editingTeam === reg._id ? (
@@ -681,7 +683,7 @@ export default function ManageRegistrations() {
                     </tr>
                     {expanded === reg._id && (
                       <tr className="bg-blue-50">
-                        <td colSpan="8" className="px-6 py-4">
+                        <td colSpan="9" className="px-6 py-4">
                           <div className="space-y-3">
                             {/* Add Player Button (Team events only) */}
                             {reg.eventId?.type === 'team' && canEditRegistration && (

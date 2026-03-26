@@ -308,6 +308,13 @@ export default function RegisterPage() {
           <div className="bg-white dark:bg-dark-card rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-dark-border text-center">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{t('registrationSuccessfulMsg')}</h2>
             {success.teamId && <p className="text-blue-700 dark:text-blue-400 font-semibold mb-4">{t('teamIdLabel')}: {success.teamId}</p>}
+            {success.registrationNumber && (
+              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl">
+                <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">📋 Registration Number</p>
+                <p className="text-2xl font-mono font-bold text-green-700 dark:text-green-400">{success.registrationNumber}</p>
+                <p className="text-xs text-green-600 dark:text-green-500 mt-2">Keep this number safe. You'll need it for check-in and updates.</p>
+              </div>
+            )}
 
             {success.paymentStatus === 'pending' && (
               <div className="mb-6 space-y-4">
@@ -380,22 +387,20 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="max-w-xs mx-auto border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-8">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{success.teamId ? t('teamQRCode') : t('participantQRCode')}</p>
-              <div id="registration-qr" className="flex justify-center bg-white p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                {isImageDataUrl(source) ? (
-                  <img src={source} alt="Registration QR code" className="h-[220px] w-[220px]" />
-                ) : (
-                  <QRCode value={getSafeRegistrationQrValue(success)} size={220} />
+            <div className="max-w-xs mx-auto border border-gray-200 dark:border-gray-700 rounded-xl p-4 mb-8 bg-blue-50 dark:bg-blue-900/20">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">🎟️ {success.teamId ? 'Team' : 'Participant'} Details</p>
+              <div className="space-y-3">
+                <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Registration Number</p>
+                  <p className="text-lg font-mono font-bold text-blue-700 dark:text-blue-400">{success.registrationNumber || 'N/A'}</p>
+                </div>
+                {success.teamId && (
+                  <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Team ID</p>
+                    <p className="text-lg font-mono font-bold text-blue-700 dark:text-blue-400">{success.teamId}</p>
+                  </div>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={downloadRegistrationQr}
-                className="mt-4 w-full border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-              >
-                {t('downloadQR')}
-              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -663,6 +668,7 @@ export default function RegisterPage() {
                               className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white font-mono ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
                               placeholder="e.g. U02CG23S0001 "
                               value={player.uucms}
+                              maxLength="10"
                               onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
                             />
                             {submitAttempted && !player.uucms && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">UUCMS is required</p>}
@@ -674,6 +680,7 @@ export default function RegisterPage() {
                               type="tel"
                               placeholder="10-digit number"
                               value={player.phone}
+                              maxLength="10"
                               onChange={e => updatePlayer(idx, 'phone', e.target.value)}
                             />
                             {submitAttempted && !player.phone && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Phone is required</p>}

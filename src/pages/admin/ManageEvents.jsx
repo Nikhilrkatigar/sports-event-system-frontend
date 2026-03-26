@@ -129,15 +129,21 @@ export default function ManageEvents() {
     });
     if (!confirmed) return;
     
+    setLoading(true);
     const previousEvents = events;
     setEvents(prev => prev.filter(e => e._id !== id));
     
     try {
-      await API.delete(`/events/${id}`);
+      const response = await API.delete(`/events/${id}`);
       toast.success('Event deleted successfully');
+      // Refresh the events list to ensure sync
+      load();
     } catch (err) {
       setEvents(previousEvents);
-      toast.error(err.response?.data?.message || 'Failed to delete event');
+      setLoading(false);
+      const errorMessage = err.response?.data?.message || err.message || 'Failed to delete event';
+      console.error('Delete error:', { status: err.response?.status, message: errorMessage, err });
+      toast.error(errorMessage);
     }
   };
 
