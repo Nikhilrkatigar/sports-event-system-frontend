@@ -344,8 +344,8 @@ export default function RegisterPage() {
             {success.registrationNumber && (
               <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl">
                 <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">📋 Check-In Number</p>
-                <p className="text-2xl font-mono font-bold text-green-700 dark:text-green-400">{success.registrationNumber}</p>
-                <p className="text-xs text-green-600 dark:text-green-500 mt-2">Use this full number or the last 5 characters for check-in (e.g., {success.registrationNumber?.slice(-5)})</p>
+                <p className="text-4xl font-mono font-bold text-green-700 dark:text-green-400 tracking-widest">{success.registrationNumber}</p>
+                <p className="text-xs text-green-600 dark:text-green-500 mt-2">Use this number for check-in at the event. Remember this 5-digit code!</p>
               </div>
             )}
 

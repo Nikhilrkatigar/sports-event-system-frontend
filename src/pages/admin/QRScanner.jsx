@@ -26,11 +26,7 @@ export default function RegistrationCheckIn() {
 
     setLoading(true);
     try {
-      // Extract last 5 characters (includes letter like S0087)
-      const input = registrationNumber.toUpperCase().trim();
-      const regNum = input.slice(-5);
-      
-      const res = await API.get(`/registrations/by-registration-number/${regNum}`);
+      const res = await API.get(`/registrations/by-registration-number/${registrationNumber.trim()}`);
       setStudentData(res.data.student);
       setRegisteredEvents(res.data.events);
       setSelectedEventId('');
@@ -56,13 +52,9 @@ export default function RegistrationCheckIn() {
 
     setLoading(true);
     try {
-      // Extract last 5 characters (includes letter like S0087)
-      const input = registrationNumber.toUpperCase().trim();
-      const regNum = input.slice(-5);
-      
       const res = await API.post('/registrations/checkin/registration-number', {
         eventId: selectedEventId,
-        registrationNumber: regNum
+        registrationNumber: registrationNumber.trim()
       });
       setResult(res.data);
       toast.success(res.data.message);
@@ -95,15 +87,15 @@ export default function RegistrationCheckIn() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Registration Number</label>
                 <input
-                  className="input-field text-2xl font-mono font-bold text-center tracking-widest"
-                  placeholder="S0087"
+                  className="input-field text-3xl font-mono font-bold text-center tracking-widest"
+                  placeholder="12345"
                   value={registrationNumber}
-                  onChange={e => setRegistrationNumber(e.target.value.toUpperCase().slice(0, 10))}
+                  onChange={e => setRegistrationNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
                   onKeyDown={e => e.key === 'Enter' && handleSearchStudent()}
-                  maxLength="10"
+                  maxLength="5"
                   autoFocus
                 />
-                <p className="text-xs text-gray-500 mt-2">Enter the registration number (e.g., S0087) and press Enter</p>
+                <p className="text-xs text-gray-500 mt-2">Enter the 5-digit registration number (e.g., 12345)</p>
               </div>
 
               <button
