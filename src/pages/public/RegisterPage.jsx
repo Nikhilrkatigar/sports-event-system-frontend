@@ -15,8 +15,29 @@ import {
 } from '../../utils/events';
 import { ChevronDown, ChevronUp, User, Loader2, CheckCircle2, ChevronRight } from 'lucide-react';
 
-const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tech', 'M.Tech', 'BA', 'MA', 'B.Ed', 'Other'];
+const DEFAULT_DEPARTMENTS = ['BCA', 'BBA', 'B.Com'];
 const MAX_QR_TEXT_LENGTH = 1000;
+
+// UUCMS Department Code Mapping (Positions 5-6)
+const UUCMS_DEPARTMENT_MAP = {
+  'CG': 'BCA',
+  'CI': 'BBA',
+  'EB': 'B.Com'
+};
+
+const extractDepartmentFromUUCMS = (uucms) => {
+  if (!uucms || typeof uucms !== 'string') return null;
+  // Extract characters at positions 5-6 (0-indexed: 4-5)
+  const deptCode = uucms.slice(4, 6);
+  return UUCMS_DEPARTMENT_MAP[deptCode] || null;
+};
+
+const extractYearFromUUCMS = (uucms) => {
+  if (!uucms || typeof uucms !== 'string') return null;
+  // Extract characters at positions 7-8 (0-indexed: 6-7)
+  const yearCode = uucms.slice(6, 8);
+  return yearCode && /^\d{2}$/.test(yearCode) ? `20${yearCode}` : null;
+};
 
 const emptyPlayer = () => ({ name: '', uucms: '', phone: '', department: '', gender: '', isSubstitute: false, isTeamLeader: false });
 const isImageDataUrl = (value) => typeof value === 'string' && value.startsWith('data:image/');
@@ -112,7 +133,18 @@ export default function RegisterPage() {
   const updatePlayer = (idx, field, value) => {
     // Auto-convert UUCMS to uppercase
     const finalValue = field === 'uucms' ? String(value || '').toUpperCase() : value;
-    setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, [field]: finalValue } : player));
+    
+    let playerUpdate = { [field]: finalValue };
+    
+    // Auto-extract and set department from UUCMS
+    if (field === 'uucms' && finalValue) {
+      const extractedDept = extractDepartmentFromUUCMS(finalValue);
+      if (extractedDept) {
+        playerUpdate.department = extractedDept;
+      }
+    }
+    
+    setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, ...playerUpdate } : player));
 
     // Check player's registration status for single events
     if (field === 'uucms' && selectedEvent?.type === 'single' && finalValue) {
@@ -668,7 +700,7 @@ export default function RegisterPage() {
                               className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white font-mono ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
                               placeholder="e.g. U02CG23S0001 "
                               value={player.uucms}
-                              maxLength="10"
+                              maxLength="12"
                               onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
                             />
                             {submitAttempted && !player.uucms && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">UUCMS is required</p>}
@@ -695,6 +727,12 @@ export default function RegisterPage() {
                               <option value="">Select department</option>
                               {availableDepartments.map(department => <option key={department} value={department}>{department}</option>)}
                             </select>
+                            {player.uucms && extractDepartmentFromUUCMS(player.uucms) && (
+                              <p className="text-[10px] text-green-600 dark:text-green-400 mt-1.5 font-semibold">
+                                ✓ Auto-filled from UUCMS: {extractDepartmentFromUUCMS(player.uucms)}
+                                {extractYearFromUUCMS(player.uucms) && ` (Year: ${extractYearFromUUCMS(player.uucms)})`}
+                              </p>
+                            )}
                             {submitAttempted && !player.department && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Department is required</p>}
                           </div>
                           <div>

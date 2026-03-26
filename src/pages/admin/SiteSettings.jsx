@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import API from '../../utils/api';
 
-const DEFAULT_DEPARTMENTS = ['BCA', 'MCA', 'BBA', 'MBA', 'B.Com', 'B.Sc', 'B.Tech', 'M.Tech', 'BA', 'MA', 'B.Ed', 'Other'];
+const DEFAULT_DEPARTMENTS = ['BCA', 'BBA', 'B.Com'];
 
 export default function SiteSettings() {
   const [form, setForm] = useState({ 
