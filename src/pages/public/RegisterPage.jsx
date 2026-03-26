@@ -343,9 +343,9 @@ export default function RegisterPage() {
             {success.teamId && <p className="text-blue-700 dark:text-blue-400 font-semibold mb-4">{t('teamIdLabel')}: {success.teamId}</p>}
             {success.registrationNumber && (
               <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl">
-                <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">📋 Registration Number</p>
+                <p className="text-sm font-semibold text-green-900 dark:text-green-300 mb-2">📋 Check-In Number</p>
                 <p className="text-2xl font-mono font-bold text-green-700 dark:text-green-400">{success.registrationNumber}</p>
-                <p className="text-xs text-green-600 dark:text-green-500 mt-2">Keep this number safe. You'll need it for check-in and updates.</p>
+                <p className="text-xs text-green-600 dark:text-green-500 mt-2">Use this full number or the last 5 characters for check-in (e.g., {success.registrationNumber?.slice(-5)})</p>
               </div>
             )}
 
