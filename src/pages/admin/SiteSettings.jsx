@@ -111,7 +111,7 @@ export default function SiteSettings() {
               rows="8"
               value={form.termsAndConditions}
               onChange={e => setForm({ ...form, termsAndConditions: e.target.value })}
-              placeholder="Enter the Terms & Conditions that users must accept before registration..."
+              placeholder="1. ELIGIBILITY&#10;All students enrolled in the college are eligible to participate.&#10;&#10;2. REGISTRATION&#10;Participants must register before the deadline. False information will lead to disqualification.&#10;&#10;3. CODE OF CONDUCT&#10;Participants must behave responsibly and follow tournament rules.&#10;&#10;4. LIABILITY&#10;The college is not responsible for personal injuries or lost items.&#10;&#10;5. FINAL DECISION&#10;Organizers have the final decision in all matters."
             />
             <p className="text-xs text-gray-500 mt-1">This will be shown as a popup when users visit the registration page.</p>
           </div>
