@@ -22,7 +22,8 @@ const MAX_QR_TEXT_LENGTH = 1000;
 const UUCMS_DEPARTMENT_MAP = {
   'CG': 'BCA',
   'CI': 'BBA',
-  'EB': 'B.Com'
+  'EB': 'B.Com',
+  'LE': 'BCA'
 };
 
 const extractDepartmentFromUUCMS = (uucms) => {
