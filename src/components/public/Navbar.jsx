@@ -29,11 +29,11 @@ export default function Navbar() {
     <header className="sticky top-0 z-50">
       <nav className="backdrop-blur-md bg-white/70 dark:bg-gray-900/30 text-gray-900 dark:text-white border-b border-gray-200 dark:border-white/10 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          {settings.collegeLogo && <img src={settings.collegeLogo} alt="logo" className="h-10 w-10 rounded-full object-cover shadow-sm" />}
-          <div>
-            <div className="font-bold text-lg leading-tight">{settings.collegeName || 'Global College'}</div>
-            <div className="text-gray-600 dark:text-white/70 text-xs">{settings.eventName || 'Annual Sports Day'}</div>
+        <Link to="/" className="flex items-center gap-2 sm:gap-3 hover:opacity-80 transition-opacity min-w-0 flex-shrink">
+          {settings.collegeLogo && <img src={settings.collegeLogo} alt="logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover shadow-sm flex-shrink-0" />}
+          <div className="min-w-0">
+            <div className="font-bold text-sm sm:text-lg leading-tight truncate max-w-[140px] sm:max-w-[220px] md:max-w-none">{settings.collegeName || 'Global College'}</div>
+            <div className="text-gray-600 dark:text-white/70 text-[10px] sm:text-xs hidden sm:block truncate">{settings.eventName || 'Annual Sports Day'}</div>
           </div>
         </Link>
 

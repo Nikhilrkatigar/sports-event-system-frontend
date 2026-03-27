@@ -6,6 +6,7 @@ import { ImageSkeleton, TextSkeleton } from '../../components/Skeletons';
 import { canRegisterForEvent, formatEventDeadline, getEventStatusMeta } from '../../utils/events';
 import LikeButton from '../../components/LikeButton';
 import ShareButton from '../../components/ShareButton';
+import TranslatedText from '../../components/TranslatedText';
 
 export default function EventDetailPage() {
   const { id } = useParams();
@@ -77,7 +78,7 @@ export default function EventDetailPage() {
               {event.maxParticipants && <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full flex gap-1 items-center"><span>Capacity:</span> <span>{event.maxParticipants}</span></span>}
             </div>
 
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">{event.title}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4"><TranslatedText text={event.title} /></h1>
 
             <div className="flex flex-wrap gap-3 mb-6">
               <LikeButton eventId={event._id} currentLikes={event.likes || 0} />
@@ -107,14 +108,14 @@ export default function EventDetailPage() {
             {event.description && (
               <div className="mb-6">
                 <h2 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">About</h2>
-                <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{event.description}</p>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed"><TranslatedText text={event.description} /></p>
               </div>
             )}
 
             {event.rules && (
               <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 rounded-xl p-5 border border-transparent dark:border-blue-900/50">
                 <h2 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Rules</h2>
-                <p className="text-blue-800 dark:text-blue-200/80 text-sm leading-relaxed whitespace-pre-line">{event.rules}</p>
+                <p className="text-blue-800 dark:text-blue-200/80 text-sm leading-relaxed whitespace-pre-line"><TranslatedText text={event.rules} /></p>
               </div>
             )}
 

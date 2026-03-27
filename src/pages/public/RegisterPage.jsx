@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import QRCode from 'react-qr-code';
 import Navbar from '../../components/public/Navbar';
 import TermsModal from '../../components/public/TermsModal';
+import TranslatedText from '../../components/TranslatedText';
 import API from '../../utils/api';
 import { useTranslation } from '../../hooks/useTranslation';
 import { FormSkeleton } from '../../components/Skeletons';
@@ -526,7 +527,7 @@ export default function RegisterPage() {
               <div className="card dark:bg-dark-card dark:border-dark-border mb-6">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <h2 className="font-semibold text-gray-900 dark:text-white">{selectedEvent.title}</h2>
+                    <h2 className="font-semibold text-gray-900 dark:text-white"><TranslatedText text={selectedEvent.title} /></h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{selectedEvent.type === 'team' ? `${selectedEvent.teamSize} ${t('mainPlayersRequired')}` : t('singleParticipantEvent')}</p>
                   </div>
                   <span className={`text-xs border px-2 py-1 rounded-full ${statusMeta?.className}`}>
@@ -599,7 +600,7 @@ export default function RegisterPage() {
             {selectedEvent && isEventRegisterable && (
               <div className="card dark:bg-dark-card dark:border-dark-border">
                 <h2 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 text-sm sm:text-base">
-                  {t('stepTwoPlayerDetails')} - <span className="text-blue-600 dark:text-blue-400">{selectedEvent.title}</span>
+                  {t('stepTwoPlayerDetails')} - <span className="text-blue-600 dark:text-blue-400"><TranslatedText text={selectedEvent.title} /></span>
                 </h2>
 
                 {selectedEvent.type === 'team' && (

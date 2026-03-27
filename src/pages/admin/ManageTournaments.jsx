@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import API from '../../utils/api';
 import toast from 'react-hot-toast';
 import { useConfirm } from '../../hooks/useConfirm';
+import { Printer } from 'lucide-react';
 
 const formatLabel = (format) => {
   if (format === 'single_elimination') return 'Single Elimination';
@@ -261,6 +262,170 @@ export default function ManageTournaments() {
     return accumulator;
   }, {});
 
+  const handlePrintTournament = useCallback(() => {
+    if (!tournament || !selectedEvent || matches.length === 0) {
+      toast.error('No tournament data to print');
+      return;
+    }
+
+    const isTrackHeats = tournament.format === 'track_heats';
+    const totalRounds = Math.max(...matches.map(m => m.round));
+
+    const getRoundLabel = (round) => {
+      if (tournament.format === 'round_robin') return 'All Matches';
+      if (Number(round) === totalRounds) return 'Final';
+      if (Number(round) === totalRounds - 1) return 'Semifinals';
+      if (Number(round) === totalRounds - 2 && totalRounds >= 3) return 'Quarterfinals';
+      return `Round ${round}`;
+    };
+
+    // Group matches by round
+    const grouped = {};
+    matches.forEach(m => {
+      if (!grouped[m.round]) grouped[m.round] = [];
+      grouped[m.round].push(m);
+    });
+
+    let matchesHtml = '';
+
+    if (isTrackHeats) {
+      Object.entries(grouped)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .forEach(([round, roundMatches]) => {
+          const roundLabel = roundMatches.length === 1 && roundMatches[0].heatName?.includes('Final')
+            ? roundMatches[0].heatName
+            : roundMatches.length === 1 && roundMatches[0].heatName?.includes('Semifinal')
+              ? 'Semifinals'
+              : `Round ${round}`;
+
+          if (Number(round) > 1) {
+            matchesHtml += `<h2 style="margin-top:24px;font-size:18px;border-bottom:2px solid #333;padding-bottom:4px;">🏅 ${roundLabel}</h2>`;
+          }
+
+          roundMatches
+            .slice()
+            .sort((a, b) => a.matchNumber - b.matchNumber)
+            .forEach(match => {
+              matchesHtml += `
+                <div style="page-break-inside:avoid;border:1px solid #ccc;border-radius:8px;padding:12px;margin-bottom:16px;">
+                  <h3 style="margin:0 0 8px;font-size:15px;">${match.heatName || 'Heat ' + match.matchNumber}
+                    <span style="float:right;font-size:11px;color:#888;">${match.scheduledTime ? new Date(match.scheduledTime).toLocaleString() : ''}</span>
+                  </h3>
+                  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                      <tr style="background:#f5f5f5;">
+                        <th style="border:1px solid #ddd;padding:6px;text-align:left;width:50px;">Lane</th>
+                        <th style="border:1px solid #ddd;padding:6px;text-align:left;">Athlete</th>
+                        <th style="border:1px solid #ddd;padding:6px;text-align:left;">Department</th>
+                        <th style="border:1px solid #ddd;padding:6px;text-align:center;width:80px;">Position</th>
+                        <th style="border:1px solid #ddd;padding:6px;text-align:center;width:80px;">Time</th>
+                        <th style="border:1px solid #ddd;padding:6px;text-align:center;width:80px;">Qualified</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${(match.lanes || []).slice().sort((a, b) => a.lane - b.lane).map(lane => `
+                        <tr>
+                          <td style="border:1px solid #ddd;padding:6px;text-align:center;font-weight:bold;">${lane.lane}</td>
+                          <td style="border:1px solid #ddd;padding:6px;">${lane.label || 'Unassigned'}</td>
+                          <td style="border:1px solid #ddd;padding:6px;">${lane.department || '-'}</td>
+                          <td style="border:1px solid #ddd;padding:6px;text-align:center;">${lane.finishPosition || '______'}</td>
+                          <td style="border:1px solid #ddd;padding:6px;text-align:center;">${lane.finishTime || '______'}</td>
+                          <td style="border:1px solid #ddd;padding:6px;text-align:center;">☐</td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>`;
+            });
+        });
+    } else {
+      // Bracket format (single elimination / round robin)
+      Object.entries(grouped)
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .forEach(([round, roundMatches]) => {
+          matchesHtml += `<h2 style="margin-top:24px;font-size:18px;border-bottom:2px solid #333;padding-bottom:4px;">${getRoundLabel(round)}</h2>`;
+          matchesHtml += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">`;
+
+          roundMatches.forEach(match => {
+            const p1Style = match.winner === match.participant1 ? 'background:#d4edda;border:1px solid #28a745;' : 'background:#f8f9fa;';
+            const p2Style = match.winner === match.participant2 ? 'background:#d4edda;border:1px solid #28a745;' : 'background:#f8f9fa;';
+
+            matchesHtml += `
+              <div style="page-break-inside:avoid;border:1px solid #ccc;border-radius:8px;padding:12px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                  <span style="font-size:11px;color:#999;">Match #${match.matchNumber}</span>
+                  <span style="font-size:11px;color:#999;">${match.scheduledTime ? new Date(match.scheduledTime).toLocaleString() : ''}</span>
+                </div>
+                <div style="${p1Style}padding:8px 12px;border-radius:6px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-weight:500;font-size:13px;">${match.participant1 || 'TBD'}</span>
+                  <span style="font-weight:bold;min-width:40px;text-align:center;border-bottom:1px dashed #999;">${match.score1 ?? ''}</span>
+                </div>
+                <div style="text-align:center;font-size:11px;color:#999;font-weight:bold;">VS</div>
+                <div style="${p2Style}padding:8px 12px;border-radius:6px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-weight:500;font-size:13px;">${match.participant2 || 'TBD'}</span>
+                  <span style="font-weight:bold;min-width:40px;text-align:center;border-bottom:1px dashed #999;">${match.score2 ?? ''}</span>
+                </div>
+                <div style="margin-top:8px;font-size:11px;color:#666;">Winner: ___________________________</div>
+              </div>`;
+          });
+
+          matchesHtml += `</div>`;
+        });
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${selectedEvent.title} - Tournament - Print</title>
+        <style>
+          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #333; }
+          @media print {
+            body { padding: 12px; }
+            button { display: none !important; }
+          }
+          .header { text-align: center; margin-bottom: 24px; border-bottom: 3px solid #333; padding-bottom: 16px; }
+          .header h1 { margin: 0 0 4px; font-size: 22px; }
+          .header .meta { font-size: 13px; color: #666; }
+          .actions { text-align: center; margin-bottom: 20px; }
+          .actions button { padding: 10px 24px; font-size: 14px; background: #2563eb; color: white; border: none; border-radius: 8px; cursor: pointer; margin: 0 6px; }
+          .actions button:hover { background: #1d4ed8; }
+        </style>
+      </head>
+      <body>
+        <div class="actions">
+          <button onclick="window.print()">🖨️ Print</button>
+          <button onclick="window.close()">✕ Close</button>
+        </div>
+        <div class="header">
+          <h1>${selectedEvent.title} — Tournament</h1>
+          <div class="meta">
+            Format: <strong>${formatLabel(tournament.format)}</strong>
+            &nbsp;·&nbsp;
+            ${tournament.participantCount || 0} participants
+            &nbsp;·&nbsp;
+            ${matches.length} ${isTrackHeats ? 'heats' : 'matches'}
+            &nbsp;·&nbsp;
+            Date: ${selectedEvent.date ? new Date(selectedEvent.date).toLocaleDateString('en-IN', { dateStyle: 'long' }) : 'TBD'}
+          </div>
+        </div>
+        ${matchesHtml}
+        <div style="margin-top:32px;border-top:2px solid #333;padding-top:12px;font-size:11px;color:#999;text-align:center;">
+          Printed on ${new Date().toLocaleString()} | ${selectedEvent.title} Tournament
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+    } else {
+      toast.error('Please allow pop-ups to print');
+    }
+  }, [tournament, selectedEvent, matches]);
+
   const availableFormats = selectedEvent?.type === 'single'
     ? ['track_heats', 'single_elimination', 'round_robin']
     : ['single_elimination', 'round_robin'];
@@ -366,6 +531,13 @@ export default function ManageTournaments() {
                   {tournament.participantCount || 0} participants
                 </div>
               </div>
+              <button
+                onClick={handlePrintTournament}
+                className="px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-2"
+              >
+                <Printer size={16} />
+                Print / PDF
+              </button>
               <button
                 onClick={handleDelete}
                 className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition-colors"

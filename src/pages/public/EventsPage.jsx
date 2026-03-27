@@ -6,6 +6,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { CardSkeleton } from '../../components/Skeletons';
 import { canRegisterForEvent, formatEventDeadline, getEventStatusMeta, PUBLIC_EVENT_STATUSES } from '../../utils/events';
 import LikeButton from '../../components/LikeButton';
+import TranslatedText from '../../components/TranslatedText';
 
 export default function EventsPage() {
   const { t } = useTranslation();
@@ -54,7 +55,7 @@ export default function EventsPage() {
                       <img src={event.image} alt={event.title} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-600 dark:from-blue-900/40 dark:to-cyan-900/40 flex items-center justify-center text-white dark:text-blue-400 text-2xl font-bold group-hover:from-blue-600 group-hover:to-cyan-700 transition-all duration-300">
-                        {event.title}
+                        <TranslatedText text={event.title} />
                       </div>
                     )}
                   </div>
@@ -67,8 +68,8 @@ export default function EventsPage() {
                         {statusMeta.label}
                       </span>
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{event.title}</h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm flex-1 line-clamp-3">{event.description}</p>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"><TranslatedText text={event.title} /></h2>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm flex-1 line-clamp-3"><TranslatedText text={event.description} /></p>
 
                     <div className="mt-4 space-y-1 text-xs text-gray-500 dark:text-gray-500">
                       {event.date && <div>📅 {new Date(event.date).toLocaleDateString()}</div>}
