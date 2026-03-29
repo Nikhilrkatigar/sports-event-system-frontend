@@ -9,6 +9,7 @@ const navItems = [
   { to: '/admin/events', label: 'Events', permission: 'manage_events' },
   { to: '/admin/registrations', label: 'Registrations', permission: 'view_registrations' },
   { to: '/admin/leaderboard', label: 'Leaderboard', permission: 'manage_leaderboard' },
+  { to: '/admin/generalchampionship', label: '🏆 General Championship', permission: 'manage_leaderboard' },
   { to: '/admin/gallery', label: 'Gallery', permission: 'manage_gallery' },
   { to: '/admin/scanner', label: 'QR Scanner', permission: 'check_in' },
   { to: '/admin/messages', label: '💬 Messages (CRM)', permission: 'view_registrations' },

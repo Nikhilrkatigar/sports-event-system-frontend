@@ -1,17 +1,70 @@
-export default function TrackHeatsBoard({ matches = [], showSchedule = true }) {
+export default function TrackHeatsBoard({
+  matches = [],
+  showSchedule = true,
+  participantLabel = 'athletes',
+  laneLabel = 'Lane',
+  laneLimit = null
+}) {
   const sortedMatches = [...matches].sort((a, b) => a.matchNumber - b.matchNumber);
   const totalQualified = sortedMatches.reduce(
     (sum, match) => sum + (match.lanes || []).filter((lane) => lane.isQualified).length,
     0
   );
+  const leaderboard = sortedMatches
+    .flatMap((match) => (match.lanes || []).map((lane) => ({ ...lane, heatName: match.heatName || `Heat ${match.matchNumber}` })))
+    .filter((lane) => lane.finishPosition != null || lane.finishTime)
+    .sort((a, b) => {
+      const hasTimeA = Boolean(a.finishTime);
+      const hasTimeB = Boolean(b.finishTime);
+      if (hasTimeA && hasTimeB) return (parseFloat(a.finishTime) || Infinity) - (parseFloat(b.finishTime) || Infinity) || (a.finishPosition ?? 999) - (b.finishPosition ?? 999);
+      if (a.finishPosition != null && b.finishPosition != null) return a.finishPosition - b.finishPosition || a.lane - b.lane;
+      if (a.finishPosition != null) return -1;
+      if (b.finishPosition != null) return 1;
+      return (parseFloat(a.finishTime) || Infinity) - (parseFloat(b.finishTime) || Infinity);
+    });
 
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard label="Total Heats" value={sortedMatches.length} />
-        <StatCard label="Lane Limit" value="8 per heat" />
+        <StatCard label="Lane Limit" value={laneLimit ? `${laneLimit} per heat` : '--'} />
         <StatCard label="Qualified" value={totalQualified} />
       </div>
+
+      {leaderboard.length > 0 && (
+        <div className="rounded-2xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-black/20">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Leaderboard</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-dark-border/60">
+              <thead className="bg-gray-50 dark:bg-black/20">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Rank</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Participant</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Heat</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Position</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-dark-border/60">
+                {leaderboard.map((lane, index) => (
+                  <tr key={`${lane.applicationId || lane.label}-${lane.heatName}-${lane.lane}`} className={index === 0 ? 'bg-emerald-50/60 dark:bg-emerald-900/10' : ''}>
+                    <td className="px-5 py-4 text-sm font-semibold text-gray-900 dark:text-white">#{index + 1}</td>
+                    <td className="px-5 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                      <div>{lane.label}</div>
+                      {lane.uucms && <div className="text-xs font-normal text-gray-500 dark:text-gray-400">{lane.uucms}</div>}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">{lane.heatName}</td>
+                    <td className="px-5 py-4 text-sm text-right text-gray-700 dark:text-gray-300">{lane.finishPosition ?? '--'}</td>
+                    <td className="px-5 py-4 text-sm text-right font-semibold text-gray-900 dark:text-white">{lane.finishTime || '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {sortedMatches.map((match) => {
@@ -29,7 +82,7 @@ export default function TrackHeatsBoard({ matches = [], showSchedule = true }) {
               <div className="px-5 py-4 border-b border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-black/20 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{match.heatName || `Heat ${match.matchNumber}`}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{lanes.length} athletes assigned</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{lanes.length} {participantLabel} assigned</p>
                 </div>
                 <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
                   match.status === 'completed'
@@ -50,7 +103,8 @@ export default function TrackHeatsBoard({ matches = [], showSchedule = true }) {
                         {lane.lane}
                       </div>
                       <div className="min-w-0">
-                        <div className="font-medium text-gray-900 dark:text-white truncate">{lane.label}</div>
+                        <div className="font-medium text-gray-900 dark:text-white truncate">{laneLabel} {lane.lane}: {lane.label}</div>
+                        {lane.uucms && <div className="text-xs text-gray-500 dark:text-gray-400">{lane.uucms}</div>}
                         <div className="text-xs text-gray-500 dark:text-gray-400">{lane.department || 'Unassigned department'}</div>
                       </div>
                     </div>

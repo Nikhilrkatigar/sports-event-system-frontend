@@ -28,6 +28,7 @@ import AdminLayout from './pages/admin/AdminLayout';
 import ManageEvents from './pages/admin/ManageEvents';
 import ManageRegistrations from './pages/admin/ManageRegistrations';
 import ManageLeaderboard from './pages/admin/ManageLeaderboard';
+import GeneralChampionship from './pages/admin/GeneralChampionship';
 import ManageGallery from './pages/admin/ManageGallery';
 import SiteSettings from './pages/admin/SiteSettings';
 import AuditLogs from './pages/admin/AuditLogs';
@@ -140,6 +141,7 @@ export default function App() {
                 <Route path="events" element={<PermissionRoute permission="manage_events"><ManageEvents /></PermissionRoute>} />
                 <Route path="registrations" element={<PermissionRoute permission="view_registrations"><ManageRegistrations /></PermissionRoute>} />
                 <Route path="leaderboard" element={<PermissionRoute permission="manage_leaderboard"><ManageLeaderboard /></PermissionRoute>} />
+                <Route path="generalchampionship" element={<PermissionRoute permission="manage_leaderboard"><GeneralChampionship /></PermissionRoute>} />
                 <Route path="gallery" element={<PermissionRoute permission="manage_gallery"><ManageGallery /></PermissionRoute>} />
                 <Route path="settings" element={<PermissionRoute permission="manage_settings"><SiteSettings /></PermissionRoute>} />
                 <Route path="audit" element={<PermissionRoute permission="view_audit"><AuditLogs /></PermissionRoute>} />

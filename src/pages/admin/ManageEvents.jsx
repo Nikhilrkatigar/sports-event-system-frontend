@@ -8,10 +8,12 @@ import { EVENT_STATUS_OPTIONS, formatEventDeadline, getEventStatusMeta } from '.
 const empty = {
   title: '',
   type: 'single',
+  eventCategory: 'track',
   status: 'draft',
   scoreOrder: 'desc',
   teamSize: 2,
   lanesPerHeat: 8,
+  fieldAttempts: 3,
   maleRequired: 0,
   femaleRequired: 0,
   allowedGenders: ['male', 'female'],
@@ -101,9 +103,11 @@ export default function ManageEvents() {
   const handleEdit = (event) => {
     setForm({
       ...event,
+      eventCategory: event.eventCategory || (event.type === 'single' ? 'track' : 'general'),
       scoreOrder: event.scoreOrder || 'desc',
       status: event.status || 'draft',
       lanesPerHeat: event.lanesPerHeat || 8,
+      fieldAttempts: event.fieldAttempts || 3,
       allowedGenders: event.allowedGenders || ['male', 'female'],
       allowedDepartments: event.allowedDepartments || [],
       registrationFee: event.registrationFee || 0,
@@ -186,6 +190,12 @@ export default function ManageEvents() {
     }
   };
 
+  const categoryLabel = (value) => {
+    if (value === 'track') return 'track';
+    if (value === 'field') return 'field';
+    return 'general';
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -209,10 +219,35 @@ export default function ManageEvents() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Event Type</label>
-              <select className="input-field" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
+              <select
+                className="input-field"
+                value={form.type}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setForm((previous) => ({
+                    ...previous,
+                    type: nextType,
+                    teamSize: nextType === 'team' ? previous.teamSize || 2 : 1,
+                    eventCategory: nextType === 'single'
+                      ? (previous.eventCategory === 'general' ? 'track' : previous.eventCategory)
+                      : previous.eventCategory
+                  }));
+                }}
+              >
                 <option value="single">Single Player</option>
                 <option value="team">Team</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Scheduling Category</label>
+              <select className="input-field" value={form.eventCategory} onChange={e => setForm({ ...form, eventCategory: e.target.value })}>
+                <option value="general">General / Head-to-Head</option>
+                <option value="track">Track / Heats</option>
+                <option value="field">Field / Ranked Flight</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Use track for races and relay, field for shot put/discus/long jump, and general for knockout or round-robin events.
+              </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Lifecycle Status</label>
@@ -233,16 +268,30 @@ export default function ManageEvents() {
                 <input type="number" className="input-field" value={form.teamSize} onChange={e => setForm({ ...form, teamSize: e.target.value })} />
               </div>
             )}
-            {form.type === 'single' && (
+            {form.eventCategory === 'track' && (
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Lanes Per Heat <span className="text-gray-400 text-xs">(for track events)</span></label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Lanes Per Heat <span className="text-gray-400 text-xs">(for track events and relay)</span></label>
                 <select className="input-field" value={form.lanesPerHeat} onChange={e => setForm({ ...form, lanesPerHeat: parseInt(e.target.value) })}>
                   <option value={5}>5 Lanes</option>
                   <option value={6}>6 Lanes</option>
                   <option value={8}>8 Lanes (Standard)</option>
                   <option value={10}>10 Lanes</option>
                 </select>
-                <p className="text-xs text-gray-500 mt-1">⚡ Players will be distributed across multiple heats if needed</p>
+                <p className="text-xs text-gray-500 mt-1">Players or teams will be distributed across multiple heats if needed.</p>
+              </div>
+            )}
+            {form.eventCategory === 'field' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Field Attempts</label>
+                <select className="input-field" value={form.fieldAttempts} onChange={e => setForm({ ...form, fieldAttempts: parseInt(e.target.value) })}>
+                  <option value={1}>1 Attempt</option>
+                  <option value={2}>2 Attempts</option>
+                  <option value={3}>3 Attempts</option>
+                  <option value={4}>4 Attempts</option>
+                  <option value={5}>5 Attempts</option>
+                  <option value={6}>6 Attempts</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">This controls how many attempt columns appear in the field-event scoring sheet.</p>
               </div>
             )}
             {form.type === 'team' && (
@@ -422,6 +471,14 @@ export default function ManageEvents() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                       {event.type === 'team' ? `Team • ${event.teamSize}` : 'Individual'}
                     </span>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Scheduling: {categoryLabel(event.eventCategory || (event.type === 'single' ? 'track' : 'general'))}
+                    </div>
+                    {(event.eventCategory || (event.type === 'single' ? 'track' : 'general')) === 'field' && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Attempts: {event.fieldAttempts || 3}
+                      </div>
+                    )}
                     {event.type === 'team' && (event.maleRequired > 0 || event.femaleRequired > 0) && (
                       <div className="text-xs text-gray-500 mt-1">
                         {event.maleRequired > 0 && <span className="mr-2">♂ {event.maleRequired}</span>}

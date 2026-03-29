@@ -57,8 +57,8 @@ function MatchCard({ match }) {
           match.participant1 === 'BYE' ? 'text-gray-400 dark:text-gray-500 italic' :
           match.winner === match.participant1 ? 'text-green-800 dark:text-green-400 font-bold' : 'text-gray-800 dark:text-gray-200'
         }`}>
-          {match.participant1 || 'TBD'}
-          {match.winner === match.participant1 && ' ✓'}
+          <span className="block">{match.participant1 || 'TBD'}{match.winner === match.participant1 && ' ✓'}</span>
+          {match.participant1Uucms && <span className="block text-[11px] font-normal opacity-80">{match.participant1Uucms}</span>}
         </span>
         <span className={`text-sm font-bold ml-2 min-w-[20px] text-right ${match.winner === match.participant1 ? 'text-green-700 dark:text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
           {match.score1 != null ? match.score1 : '-'}
@@ -71,8 +71,8 @@ function MatchCard({ match }) {
           match.participant2 === 'BYE' ? 'text-gray-400 dark:text-gray-500 italic' :
           match.winner === match.participant2 ? 'text-green-800 dark:text-green-400 font-bold' : 'text-gray-800 dark:text-gray-200'
         }`}>
-          {match.participant2 || 'TBD'}
-          {match.winner === match.participant2 && ' ✓'}
+          <span className="block">{match.participant2 || 'TBD'}{match.winner === match.participant2 && ' ✓'}</span>
+          {match.participant2Uucms && <span className="block text-[11px] font-normal opacity-80">{match.participant2Uucms}</span>}
         </span>
         <span className={`text-sm font-bold ml-2 min-w-[20px] text-right ${match.winner === match.participant2 ? 'text-green-700 dark:text-green-500' : 'text-gray-500 dark:text-gray-400'}`}>
           {match.score2 != null ? match.score2 : '-'}

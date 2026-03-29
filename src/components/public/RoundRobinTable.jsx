@@ -1,9 +1,19 @@
 export default function RoundRobinTable({ matches, participants }) {
-  const participantLabels = participants.map((participant) => participant.label).filter((label) => label !== 'BYE');
+  const participantRows = participants.filter((participant) => participant.label !== 'BYE');
   const standings = {};
 
-  participantLabels.forEach((label) => {
-    standings[label] = { name: label, played: 0, wins: 0, draws: 0, losses: 0, pointsFor: 0, pointsAgainst: 0, points: 0 };
+  participantRows.forEach((participant) => {
+    standings[participant.label] = {
+      name: participant.label,
+      uucms: participant.uucms || '',
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      pointsFor: 0,
+      pointsAgainst: 0,
+      points: 0
+    };
   });
 
   matches.filter(match => match.status === 'completed').forEach((match) => {
@@ -48,6 +58,7 @@ export default function RoundRobinTable({ matches, participants }) {
               <tr>
                 <th className="px-4 py-3 text-left">#</th>
                 <th className="px-4 py-3 text-left">Participant</th>
+                <th className="px-4 py-3 text-left">UUCMS</th>
                 <th className="px-4 py-3 text-center">P</th>
                 <th className="px-4 py-3 text-center">W</th>
                 <th className="px-4 py-3 text-center">D</th>
@@ -66,6 +77,7 @@ export default function RoundRobinTable({ matches, participants }) {
                 }`}>
                   <td className="px-4 py-3 font-bold text-gray-700 dark:text-gray-300">{index + 1}</td>
                   <td className="px-4 py-3 font-semibold text-gray-900 dark:text-white">{standing.name}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{standing.uucms || '-'}</td>
                   <td className="px-4 py-3 text-center text-gray-600 dark:text-gray-400">{standing.played}</td>
                   <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{standing.wins}</td>
                   <td className="px-4 py-3 text-center text-yellow-600 dark:text-yellow-400">{standing.draws}</td>
@@ -94,8 +106,10 @@ export default function RoundRobinTable({ matches, participants }) {
                 </div>
                 <div className="text-center">
                   <span className="font-semibold text-gray-800 dark:text-gray-200">{match.participant1}</span>
+                  {match.participant1Uucms && <span className="block text-xs text-gray-500 dark:text-gray-400">{match.participant1Uucms}</span>}
                   <span className="text-gray-400 dark:text-gray-500 mx-2 text-sm">vs</span>
                   <span className="font-semibold text-gray-800 dark:text-gray-200">{match.participant2}</span>
+                  {match.participant2Uucms && <span className="block text-xs text-gray-500 dark:text-gray-400">{match.participant2Uucms}</span>}
                 </div>
                 {match.scheduledTime && (
                   <div className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">
@@ -121,10 +135,12 @@ export default function RoundRobinTable({ matches, participants }) {
                 <div className="flex items-center justify-between">
                   <span className={`font-semibold text-sm ${match.winner === match.participant1 ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                     {match.participant1}
+                    {match.participant1Uucms && <span className="block text-[11px] font-normal">{match.participant1Uucms}</span>}
                   </span>
                   <span className="font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-sm">{match.score1} - {match.score2}</span>
                   <span className={`font-semibold text-sm ${match.winner === match.participant2 ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                     {match.participant2}
+                    {match.participant2Uucms && <span className="block text-[11px] font-normal">{match.participant2Uucms}</span>}
                   </span>
                 </div>
               </div>

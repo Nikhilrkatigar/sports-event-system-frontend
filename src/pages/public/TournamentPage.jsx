@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import Navbar from '../../components/public/Navbar';
 import TournamentBracket from '../../components/public/TournamentBracket';
 import RoundRobinTable from '../../components/public/RoundRobinTable';
 import TrackHeatsBoard from '../../components/public/TrackHeatsBoard';
+import FieldFlightBoard from '../../components/public/FieldFlightBoard';
 import API from '../../utils/api';
-
-const formatLabel = (format) => {
-  if (format === 'single_elimination') return 'Single Elimination';
-  if (format === 'round_robin') return 'Round Robin';
-  if (format === 'track_heats') return 'Track Heats';
-  return format;
-};
+import { formatLabel } from '../../utils/tournaments';
 
 export default function TournamentPage() {
   const { eventId } = useParams();
@@ -39,9 +35,28 @@ export default function TournamentPage() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
   }, [eventId]);
+
+  useEffect(() => {
+    if (!tournament?._id) return undefined;
+    const socket = io('/', { transports: ['websocket', 'polling'] });
+    socket.emit('join_tournament', tournament._id);
+    socket.on('tournament_match_updated', ({ match }) => {
+      setMatches((previous) => {
+        const exists = previous.some((entry) => entry._id === match._id);
+        const next = exists ? previous.map((entry) => (entry._id === match._id ? { ...entry, ...match } : entry)) : [...previous, match];
+        const sorted = next.sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber);
+        if (sorted.length > 0 && sorted.every((entry) => entry.status === 'completed')) {
+          setTournament((previousTournament) => previousTournament ? { ...previousTournament, status: 'completed' } : previousTournament);
+        }
+        return sorted;
+      });
+    });
+    return () => {
+      socket.emit('leave_tournament', tournament._id);
+      socket.disconnect();
+    };
+  }, [tournament?._id]);
 
   const totalRounds = matches.length > 0 ? Math.max(...matches.map((match) => match.round)) : 0;
   const champion = tournament?.format === 'single_elimination' && tournament?.status === 'completed'
@@ -56,9 +71,12 @@ export default function TournamentPage() {
     [matches]
   );
 
+  const participantUnit = tournament?.eventId?.type === 'team' ? 'teams' : 'athletes';
   const pageTitle = tournament?.format === 'track_heats'
     ? `${tournament?.eventId?.title || 'Track Event'} Heats`
-    : `${tournament?.eventId?.title || 'Tournament'} Bracket`;
+    : tournament?.format === 'field_flight'
+      ? `${tournament?.eventId?.title || 'Field Event'} Flight`
+      : `${tournament?.eventId?.title || 'Tournament'} Bracket`;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
@@ -89,7 +107,7 @@ export default function TournamentPage() {
               </span>
             </div>
           )}
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Auto-updates every 30 seconds</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Live updates enabled</p>
         </div>
 
         {loading && (
@@ -116,17 +134,23 @@ export default function TournamentPage() {
         {!loading && !error && upcomingMatches.length > 0 && (
           <div className="bg-white dark:bg-dark-card border border-gray-100 dark:border-dark-border rounded-2xl p-6 mb-8 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {tournament?.format === 'track_heats' ? 'Upcoming Heats' : 'Upcoming Matches'}
+              {tournament?.format === 'track_heats' ? 'Upcoming Heats' : tournament?.format === 'field_flight' ? 'Upcoming Flights' : 'Upcoming Matches'}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {upcomingMatches.map((match) => (
                 <div key={match._id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                    {tournament?.format === 'track_heats' ? (match.heatName || `Heat ${match.matchNumber}`) : `Match #${match.matchNumber}`}
+                    {tournament?.format === 'track_heats'
+                      ? (match.heatName || `Heat ${match.matchNumber}`)
+                      : tournament?.format === 'field_flight'
+                        ? (match.heatName || `Flight ${match.matchNumber}`)
+                        : `Match #${match.matchNumber}`}
                   </div>
                   <div className="font-medium text-gray-900 dark:text-gray-200">
                     {tournament?.format === 'track_heats'
-                      ? `${(match.lanes || []).length} athletes assigned`
+                      ? `${(match.lanes || []).length} ${participantUnit} assigned`
+                      : tournament?.format === 'field_flight'
+                        ? `${(match.fieldEntries || []).length} participants assigned`
                       : `${match.participant1 || 'TBD'} vs ${match.participant2 || 'TBD'}`}
                   </div>
                   <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{new Date(match.scheduledTime).toLocaleString()}</div>
@@ -141,8 +165,14 @@ export default function TournamentPage() {
             <TournamentBracket matches={matches} totalRounds={totalRounds} />
           ) : tournament.format === 'round_robin' ? (
             <RoundRobinTable matches={matches} participants={tournament.participants || []} />
+          ) : tournament.format === 'field_flight' ? (
+            <FieldFlightBoard matches={matches} scoreOrder={tournament?.eventId?.scoreOrder || 'desc'} />
           ) : (
-            <TrackHeatsBoard matches={matches} />
+            <TrackHeatsBoard
+              matches={matches}
+              participantLabel={participantUnit}
+              laneLimit={tournament?.eventId?.lanesPerHeat || 8}
+            />
           )
         )}
       </div>
