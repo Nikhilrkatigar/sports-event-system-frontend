@@ -9,7 +9,7 @@ import ConfirmationDialog from './components/ConfirmationDialog';
 import WelcomeSplash from './components/WelcomeSplash';
 import { setConfirmDialogRef } from './hooks/useConfirm';
 import MobileBottomNav from './components/MobileBottomNav';
-import DashboardWithCharts from './pages/admin/DashboardWithCharts';
+import Dashboard from './pages/admin/Dashboard';
 
 // Public pages
 import HomePage from './pages/public/HomePage';
@@ -137,7 +137,7 @@ export default function App() {
               <Route path="/admin/login" element={<LoginPage />} />
               <Route path="/admin/setup" element={<SetupPage />} />
               <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
-                <Route index element={<PermissionRoute permission="view_dashboard"><DashboardWithCharts /></PermissionRoute>} />
+                <Route index element={<PermissionRoute permission="view_dashboard"><Dashboard /></PermissionRoute>} />
                 <Route path="events" element={<PermissionRoute permission="manage_events"><ManageEvents /></PermissionRoute>} />
                 <Route path="registrations" element={<PermissionRoute permission="view_registrations"><ManageRegistrations /></PermissionRoute>} />
                 <Route path="leaderboard" element={<PermissionRoute permission="manage_leaderboard"><ManageLeaderboard /></PermissionRoute>} />
