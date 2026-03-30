@@ -123,16 +123,365 @@ export default function ManageTournaments() {
     }
   };
 
-  const handlePrintTournament = useCallback(() => {
+  const handlePrintTournament = useCallback(async () => {
     if (!tournament || !selectedEvent || matches.length === 0) return toast.error('No tournament data to print');
-    const rows = matches.map((match) => {
-      if (tournament.format === 'track_heats') return `<h3>${match.heatName || `Heat ${match.matchNumber}`}</h3><ul>${(match.lanes || []).sort((a, b) => a.lane - b.lane).map((lane) => `<li>Lane ${lane.lane}: ${lane.label}${lane.uucms ? ` (${lane.uucms})` : ''} ${lane.finishPosition ? `(P${lane.finishPosition})` : ''} ${lane.finishTime || ''}</li>`).join('')}</ul>`;
-      if (tournament.format === 'field_flight') return `<h3>${match.heatName || 'Field Flight'}</h3><table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;margin-bottom:16px;"><thead><tr><th>Order</th><th>Participant</th><th>Reg. Number</th><th>UUCMS</th><th>Department</th>${Array.from({ length: tournament?.eventId?.fieldAttempts || selectedEvent?.fieldAttempts || 3 }, (_, index) => `<th>Attempt ${index + 1}</th>`).join('')}<th>Best Score</th><th>Rank</th></tr></thead><tbody>${sortFieldEntries(match.fieldEntries || []).map((entry) => `<tr><td>${entry.order}</td><td>${entry.label}</td><td>${entry.registrationNumber || '-'}</td><td>${entry.uucms || '-'}</td><td>${entry.department || '-'}</td>${(entry.attempts || Array.from({ length: tournament?.eventId?.fieldAttempts || selectedEvent?.fieldAttempts || 3 }, () => null)).map((attempt) => `<td>${attempt ?? '-'}</td>`).join('')}<td>${entry.bestScore ?? entry.performance ?? '-'}</td><td>${entry.rank != null ? `#${entry.rank}` : '-'}</td></tr>`).join('')}</tbody></table>`;
-      return `<h3>Round ${match.round} Match ${match.matchNumber}</h3><p>${match.participant1 || 'TBD'}${match.participant1Uucms ? ` (${match.participant1Uucms})` : ''} ${match.score1 ?? ''} vs ${match.score2 ?? ''} ${match.participant2 || 'TBD'}${match.participant2Uucms ? ` (${match.participant2Uucms})` : ''}</p>`;
-    }).join('');
-    const w = window.open('', '_blank'); if (!w) return toast.error('Please allow pop-ups to print');
-    w.document.write(`<!doctype html><html><head><title>${selectedEvent.title}</title></head><body><h1>${selectedEvent.title}</h1><p>${formatLabel(tournament.format)}</p>${rows}</body></html>`); w.document.close(); w.print();
-  }, [matches, selectedEvent, tournament]);
+    
+    try {
+      // Fetch enriched data with player details for single elimination
+      let enrichedMatches = matches;
+      if ((tournament.format === 'single_elimination' || tournament.format === 'round_robin') && selectedEventId) {
+        try {
+          const res = await API.get(`/tournaments/event/${selectedEventId}/print`);
+          enrichedMatches = res.data.matches || matches;
+        } catch (err) {
+          // If enriched endpoint fails, use regular matches
+          console.warn('Could not fetch enriched matches for print:', err.message);
+        }
+      }
+      
+      const groupedByRound = {};
+      enrichedMatches.forEach((match) => {
+        if (!groupedByRound[match.round]) groupedByRound[match.round] = [];
+        groupedByRound[match.round].push(match);
+      });
+
+      let htmlContent = `<!doctype html>
+<html>
+<head>
+  <title>${selectedEvent.title} - ${formatLabel(tournament.format)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; color: #333; background: #fff; padding: 10px; line-height: 1.4; }
+    h1 { font-size: 20px; font-weight: bold; margin: 15px 0 8px 0; }
+    h2 { font-size: 14px; font-weight: bold; margin: 20px 0 12px 0; page-break-after: avoid; }
+    
+    .header { border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 15px; }
+    .format-label { font-size: 11px; color: #666; }
+    
+    .match-container { 
+      margin-bottom: 25px; 
+      border: 2px solid #333; 
+      padding: 12px; 
+      page-break-inside: avoid;
+      background: #fff;
+    }
+    
+    .match-header {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      padding: 8px;
+      background: #f0f0f0;
+      border: 1px solid #999;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .match-title {
+      flex: 1;
+    }
+    
+    .winner-blank {
+      border-bottom: 2px solid #000;
+      min-width: 120px;
+      text-align: center;
+      padding: 0 8px;
+      font-size: 11px;
+      color: #999;
+    }
+    
+    .teams-container {
+      display: flex;
+      gap: 15px;
+      margin-top: 10px;
+    }
+    
+    .team-table {
+      flex: 1;
+    }
+    
+    .team-name {
+      font-weight: bold;
+      font-size: 12px;
+      margin-bottom: 6px;
+      padding: 6px;
+      background: #e3f2fd;
+      border-left: 4px solid #1976d2;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10px;
+      margin-bottom: 15px;
+    }
+    
+    th {
+      background: #333;
+      color: white;
+      padding: 5px;
+      text-align: left;
+      font-weight: bold;
+      border: 1px solid #999;
+    }
+    
+    td {
+      border: 1px solid #ddd;
+      padding: 5px;
+    }
+    
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    
+    .bye-text {
+      text-align: center;
+      padding: 20px;
+      color: #999;
+      font-style: italic;
+      font-size: 12px;
+    }
+    
+    .round-header {
+      margin-top: 25px;
+      margin-bottom: 12px;
+      text-align: center;
+      padding: 8px;
+      background: #e9ecef;
+      border: 2px solid #999;
+      page-break-after: avoid;
+      font-size: 13px;
+      font-weight: bold;
+    }
+    
+    @media print {
+      body { margin: 10px; }
+      .match-container { page-break-inside: avoid; }
+      .teams-container { page-break-inside: avoid; }
+      .round-header { page-break-after: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${selectedEvent.title}</h1>
+    <p class="format-label">${formatLabel(tournament.format)}</p>
+  </div>`;
+
+      if (tournament.format === 'single_elimination' || tournament.format === 'round_robin') {
+        Object.keys(groupedByRound).sort((a, b) => Number(a) - Number(b)).forEach((round) => {
+          const roundMatches = groupedByRound[round];
+          const totalRounds = Math.max(...Object.keys(groupedByRound).map(Number));
+          let roundLabel = `Round ${round}`;
+          if (tournament.format === 'single_elimination') {
+            if (Number(round) === totalRounds) roundLabel = 'FINAL';
+            else if (Number(round) === totalRounds - 1) roundLabel = 'SEMIFINALS';
+            else if (Number(round) === totalRounds - 2) roundLabel = 'QUARTERFINALS';
+          }
+          
+          htmlContent += `<div class="round-header">${roundLabel}</div>`;
+          
+          roundMatches.sort((a, b) => a.matchNumber - b.matchNumber).forEach((match) => {
+            const isByeMatch = match.participant1 === 'BYE' || match.participant2 === 'BYE';
+            
+            htmlContent += `<div class="match-container">
+              <div class="match-header">
+                <div class="match-title">Match ${match.matchNumber}: ${match.participant1 === 'BYE' ? 'BYE' : (match.participant1 || 'TBD')} vs ${match.participant2 === 'BYE' ? 'BYE' : (match.participant2 || 'TBD')}</div>
+                <div class="winner-blank">${match.winner ? match.winner : ''}</div>
+              </div>`;
+            
+            if (isByeMatch) {
+              htmlContent += `<div class="bye-text">BYE MATCH</div>`;
+            } else if (match.participant1TeamDetails || match.participant2TeamDetails) {
+              // Team format with player lists
+              htmlContent += `<div class="teams-container">`;
+              
+              // Team 1
+              htmlContent += `<div class="team-table">
+                <div class="team-name">${match.participant1 || 'TBD'}</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Reg #</th>
+                      <th>UUCMS</th>
+                      <th>Name</th>
+                      <th>Department</th>
+                      <th>Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>`;
+              
+              if (match.participant1TeamDetails && match.participant1TeamDetails.players) {
+                match.participant1TeamDetails.players.forEach((player) => {
+                  const role = player.isTeamLeader ? 'CAPTAIN' : player.isSubstitute ? 'SUBSTITUTE' : 'PLAYER';
+                  htmlContent += `<tr>
+                    <td>${match.participant1RegistrationNumber || '-'}</td>
+                    <td>${player.uucms || '-'}</td>
+                    <td>${player.name || '-'}</td>
+                    <td>${player.department || '-'}</td>
+                    <td>${role}</td>
+                  </tr>`;
+                });
+              }
+              
+              htmlContent += `</tbody></table></div>`;
+              
+              // Team 2
+              htmlContent += `<div class="team-table">
+                <div class="team-name">${match.participant2 || 'TBD'}</div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Reg #</th>
+                      <th>UUCMS</th>
+                      <th>Name</th>
+                      <th>Department</th>
+                      <th>Role</th>
+                    </tr>
+                  </thead>
+                  <tbody>`;
+              
+              if (match.participant2TeamDetails && match.participant2TeamDetails.players) {
+                match.participant2TeamDetails.players.forEach((player) => {
+                  const role = player.isTeamLeader ? 'CAPTAIN' : player.isSubstitute ? 'SUBSTITUTE' : 'PLAYER';
+                  htmlContent += `<tr>
+                    <td>${match.participant2RegistrationNumber || '-'}</td>
+                    <td>${player.uucms || '-'}</td>
+                    <td>${player.name || '-'}</td>
+                    <td>${player.department || '-'}</td>
+                    <td>${role}</td>
+                  </tr>`;
+                });
+              }
+              
+              htmlContent += `</tbody></table></div>`;
+              
+              htmlContent += `</div>`;
+            } else {
+              // No team details - simple comparison
+              htmlContent += `<div class="teams-container">
+                <div class="team-table">
+                  <div class="team-name">${match.participant1 || 'TBD'}</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Reg #</th>
+                        <th>UUCMS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>${match.participant1RegistrationNumber || '-'}</td>
+                        <td>${match.participant1Uucms || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="team-table">
+                  <div class="team-name">${match.participant2 || 'TBD'}</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Reg #</th>
+                        <th>UUCMS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>${match.participant2RegistrationNumber || '-'}</td>
+                        <td>${match.participant2Uucms || '-'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>`;
+            }
+            
+            htmlContent += `</div>`;
+          });
+        });
+      } else if (tournament.format === 'track_heats') {
+        Object.keys(groupedByRound).sort((a, b) => Number(a) - Number(b)).forEach((round) => {
+          const roundMatches = groupedByRound[round];
+          const roundLabel = Number(round) > 1 ? `Round ${round}` : 'Heats';
+          htmlContent += `<div class="round-header"><h2>${roundLabel}</h2></div>`;
+          
+          roundMatches.forEach((match) => {
+            htmlContent += `<div class="match-container">
+              <h3>${match.heatName || `Heat ${match.matchNumber}`}</h3>
+              <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                  <tr style="background: #f0f0f0; border-bottom: 2px solid #333;">
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Lane</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Participant</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">UUCMS</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: center;">Position</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: center;">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${(match.lanes || []).sort((a, b) => a.lane - b.lane).map((lane) => `
+                    <tr>
+                      <td style="border: 1px solid #ddd; padding: 6px; text-align: center; font-weight: bold;">${lane.lane}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px;">${lane.label}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px;">${lane.uucms || '-'}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px; text-align: center; padding-bottom: 12px;">${lane.finishPosition ? `P${lane.finishPosition}` : '______'}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px; text-align: center; padding-bottom: 12px;">${lane.finishTime || '______'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>`;
+          });
+        });
+      } else if (tournament.format === 'field_flight') {
+        Object.keys(groupedByRound).sort((a, b) => Number(a) - Number(b)).forEach((round) => {
+          const roundMatches = groupedByRound[round];
+          roundMatches.forEach((match) => {
+            htmlContent += `<div class="match-container">
+              <h3>${match.heatName || 'Field Flight'}</h3>
+              <table style="width:100%; border-collapse: collapse; font-size: 10px;">
+                <thead>
+                  <tr style="background: #f0f0f0; border-bottom: 2px solid #333;">
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Order</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Participant</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Reg #</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">UUCMS</th>
+                    ${Array.from({ length: tournament?.eventId?.fieldAttempts || selectedEvent?.fieldAttempts || 3 }, (_, i) => `<th style="border: 1px solid #ddd; padding: 6px; text-align: center;">A${i + 1}</th>`).join('')}
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: center;">Best</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sortFieldEntries(match.fieldEntries || []).map((entry) => `
+                    <tr>
+                      <td style="border: 1px solid #ddd; padding: 6px; text-align: center;">${entry.order}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px;">${entry.label}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px;">${entry.registrationNumber || '-'}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px;">${entry.uucms || '-'}</td>
+                      ${(entry.attempts || Array.from({ length: tournament?.eventId?.fieldAttempts || selectedEvent?.fieldAttempts || 3 }, () => null)).map((attempt) => `<td style="border: 1px solid #ddd; padding: 6px; text-align: center; padding-bottom: 12px;">${attempt ?? '__'}</td>`).join('')}
+                      <td style="border: 1px solid #ddd; padding: 6px; text-align: center; font-weight: bold;">${entry.bestScore ?? entry.performance ?? '-'}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>`;
+          });
+        });
+      }
+
+      htmlContent += `</body></html>`;
+      
+      const w = window.open('', '_blank'); 
+      if (!w) return toast.error('Please allow pop-ups to print');
+      w.document.write(htmlContent); 
+      w.document.close(); 
+      w.print();
+    } catch (err) {
+      console.error('Error printing tournament:', err);
+      toast.error('Error preparing print document');
+    }
+  }, [matches, selectedEvent, tournament, selectedEventId]);
 
   const generateActionLabel = getGenerateActionLabel(format);
   const participantUnit = getParticipantUnitLabel(selectedEvent, tournament?.format || format);
