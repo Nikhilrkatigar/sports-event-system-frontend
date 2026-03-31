@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Navbar from '../../components/public/Navbar';
-import TournamentBracket from '../../components/public/TournamentBracket';
+import TournamentBracket, { BracketSkeleton } from '../../components/public/TournamentBracket';
 import RoundRobinTable from '../../components/public/RoundRobinTable';
 import TrackHeatsBoard from '../../components/public/TrackHeatsBoard';
 import FieldFlightBoard from '../../components/public/FieldFlightBoard';
@@ -225,6 +225,12 @@ export default function TournamentPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {loading && tournament?.format === 'single_elimination' && (
+          <div className="relative">
+            <BracketSkeleton />
           </div>
         )}
 

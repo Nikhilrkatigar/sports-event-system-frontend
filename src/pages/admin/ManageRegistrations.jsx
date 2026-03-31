@@ -529,7 +529,7 @@ export default function ManageRegistrations() {
       </div>
 
       <div className="flex gap-3 mb-4 flex-wrap">
-        <input className="input-field max-w-xs" placeholder="Search name, UUCMS, team..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="input-field max-w-xs" placeholder="Search registration #, name, UUCMS, team..." value={search} onChange={e => setSearch(e.target.value)} />
         <select className="input-field max-w-xs" value={filter} onChange={e => setFilter(e.target.value)}>
           <option value="">All Events</option>
           {events.map(ev => <option key={ev._id} value={ev._id}>{ev.title}</option>)}
