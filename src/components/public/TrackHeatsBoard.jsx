@@ -6,11 +6,13 @@ export default function TrackHeatsBoard({
   laneLimit = null
 }) {
   const sortedMatches = [...matches].sort((a, b) => a.matchNumber - b.matchNumber);
-  const totalQualified = sortedMatches.reduce(
-    (sum, match) => sum + (match.lanes || []).filter((lane) => lane.isQualified).length,
-    0
-  );
-  const leaderboard = sortedMatches
+  const latestRound = sortedMatches.length > 0
+    ? Math.max(...sortedMatches.map((match) => Number(match.round) || 1))
+    : 1;
+  const leaderboardSourceMatches = latestRound > 1
+    ? sortedMatches.filter((match) => (Number(match.round) || 1) === latestRound)
+    : sortedMatches;
+  const leaderboard = leaderboardSourceMatches
     .flatMap((match) => (match.lanes || []).map((lane) => ({ ...lane, heatName: match.heatName || `Heat ${match.matchNumber}` })))
     .filter((lane) => lane.finishPosition != null || lane.finishTime)
     .sort((a, b) => {
@@ -22,19 +24,25 @@ export default function TrackHeatsBoard({
       if (b.finishPosition != null) return 1;
       return (parseFloat(a.finishTime) || Infinity) - (parseFloat(b.finishTime) || Infinity);
     });
+  const totalQualified = latestRound > 1
+    ? Math.min(3, leaderboard.length)
+    : sortedMatches.reduce(
+        (sum, match) => sum + (match.lanes || []).filter((lane) => lane.isQualified).length,
+        0
+      );
 
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard label="Total Heats" value={sortedMatches.length} />
         <StatCard label="Lane Limit" value={laneLimit ? `${laneLimit} per heat` : '--'} />
-        <StatCard label="Qualified" value={totalQualified} />
+        <StatCard label={latestRound > 1 ? 'Podium' : 'Qualified'} value={totalQualified} />
       </div>
 
       {leaderboard.length > 0 && (
         <div className="rounded-2xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-card shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 dark:border-dark-border bg-gray-50 dark:bg-black/20">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Leaderboard</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{latestRound > 1 ? 'Final Standings' : 'Leaderboard'}</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100 dark:divide-dark-border/60">

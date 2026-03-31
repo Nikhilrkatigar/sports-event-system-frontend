@@ -24,6 +24,8 @@ const getBestFieldScore = (attempts = [], scoreOrder = 'desc') => {
   return scoreOrder === 'asc' ? Math.min(...values) : Math.max(...values);
 };
 
+const GENDER_LABELS = { all: 'All', male: 'Male (Boys)', female: 'Female (Girls)' };
+
 function SummaryCard({ label, value }) {
   return <div className="rounded-xl border border-gray-200 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</div><div className="mt-2 text-2xl font-bold text-gray-900">{value}</div></div>;
 }
@@ -35,19 +37,72 @@ function StatusBadge({ status }) {
 
 export default function ManageTournaments() {
   const [events, setEvents] = useState([]), [selectedEventId, setSelectedEventId] = useState(''), [format, setFormat] = useState('single_elimination');
-  const [genderFilter, setGenderFilter] = useState('all'), [tournament, setTournament] = useState(null), [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(false), [generating, setGenerating] = useState(false), [generatingQualifications, setGeneratingQualifications] = useState(false);
+  const [genderFilter, setGenderFilter] = useState('all');
+  // Support multiple tournaments per event
+  const [allTournaments, setAllTournaments] = useState([]); // [{tournament, matches}]
+  const [activeGenderTab, setActiveGenderTab] = useState(null); // which gender tab is active
+  const [loading, setLoading] = useState(false), [generating, setGenerating] = useState(false);
   const [scores, setScores] = useState({}), [laneInputs, setLaneInputs] = useState({}), [fieldInputs, setFieldInputs] = useState({}), [scheduleInputs, setScheduleInputs] = useState({});
   const [savingMatch, setSavingMatch] = useState(null), [savingSchedule, setSavingSchedule] = useState(null);
   const { confirm } = useConfirm();
   const selectedEvent = useMemo(() => events.find((e) => e._id === selectedEventId) || null, [events, selectedEventId]);
   const availableFormats = useMemo(() => getAvailableFormats(selectedEvent), [selectedEvent]);
+
+  // Derive active tournament and matches from allTournaments + activeGenderTab
+  const activeTournamentEntry = useMemo(() => {
+    if (allTournaments.length === 0) return null;
+    if (activeGenderTab) {
+      return allTournaments.find((t) => t.tournament.genderFilter === activeGenderTab) || allTournaments[0];
+    }
+    return allTournaments[0];
+  }, [allTournaments, activeGenderTab]);
+
+  const tournament = activeTournamentEntry?.tournament || null;
+  const matches = activeTournamentEntry?.matches || [];
   const groupedByRound = useMemo(() => matches.reduce((acc, m) => ((acc[m.round] ||= []).push(m), acc), {}), [matches]);
   const bracketFormats = new Set(['single_elimination', 'round_robin']);
 
-  const resetState = () => { setTournament(null); setMatches([]); setScores({}); setLaneInputs({}); setFieldInputs({}); setScheduleInputs({}); };
-  const syncState = (nextMatches, nextTournament = tournament) => { setTournament(nextTournament); setMatches(nextMatches); setScores(buildScoreState(nextMatches)); setLaneInputs(buildLaneState(nextMatches)); setFieldInputs(buildFieldState(nextMatches)); setScheduleInputs(buildScheduleState(nextMatches)); };
-  const loadTournament = async (eventId) => { setLoading(true); try { const r = await API.get(`/tournaments/event/${eventId}`); syncState(r.data.matches, r.data.tournament); } catch { resetState(); } finally { setLoading(false); } };
+  const resetState = () => { setAllTournaments([]); setActiveGenderTab(null); setScores({}); setLaneInputs({}); setFieldInputs({}); setScheduleInputs({}); };
+  const syncState = (nextMatches, nextTournament = tournament) => {
+    // Update within allTournaments
+    setAllTournaments((prev) => {
+      const idx = prev.findIndex((t) => t.tournament._id === nextTournament._id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { tournament: nextTournament, matches: nextMatches };
+        return updated;
+      }
+      return [...prev, { tournament: nextTournament, matches: nextMatches }];
+    });
+    setScores(buildScoreState(nextMatches));
+    setLaneInputs(buildLaneState(nextMatches));
+    setFieldInputs(buildFieldState(nextMatches));
+    setScheduleInputs(buildScheduleState(nextMatches));
+  };
+  const loadTournament = async (eventId) => {
+    setLoading(true);
+    try {
+      const r = await API.get(`/tournaments/event/${eventId}`);
+      if (r.data.allTournaments) {
+        // Multiple tournaments returned
+        setAllTournaments(r.data.allTournaments);
+        const firstEntry = r.data.allTournaments[0];
+        setActiveGenderTab(firstEntry?.tournament?.genderFilter || null);
+        setScores(buildScoreState(firstEntry?.matches || []));
+        setLaneInputs(buildLaneState(firstEntry?.matches || []));
+        setFieldInputs(buildFieldState(firstEntry?.matches || []));
+        setScheduleInputs(buildScheduleState(firstEntry?.matches || []));
+      } else {
+        // Single tournament
+        setAllTournaments([{ tournament: r.data.tournament, matches: r.data.matches }]);
+        setActiveGenderTab(r.data.tournament?.genderFilter || null);
+        setScores(buildScoreState(r.data.matches));
+        setLaneInputs(buildLaneState(r.data.matches));
+        setFieldInputs(buildFieldState(r.data.matches));
+        setScheduleInputs(buildScheduleState(r.data.matches));
+      }
+    } catch { resetState(); } finally { setLoading(false); }
+  };
 
   useEffect(() => { API.get('/events').then((r) => setEvents(r.data)); }, []);
   useEffect(() => { if (!selectedEventId) resetState(); else loadTournament(selectedEventId); }, [selectedEventId]);
@@ -56,7 +111,15 @@ export default function ManageTournaments() {
   const handleGenerate = async () => {
     if (!selectedEventId) return toast.error('Select an event first');
     setGenerating(true);
-    try { const r = await API.post('/tournaments/generate', { eventId: selectedEventId, format, genderFilter: genderFilter === 'all' ? null : genderFilter }); syncState(r.data.matches, r.data.tournament); toast.success(`${formatLabel(format)} generated`); }
+    try {
+      const r = await API.post('/tournaments/generate', { eventId: selectedEventId, format, genderFilter: genderFilter === 'all' ? null : genderFilter });
+      // Reload all tournaments for this event to get the full picture
+      await loadTournament(selectedEventId);
+      // Switch to the newly generated gender tab
+      setActiveGenderTab(r.data.tournament?.genderFilter || 'all');
+      const genderLabel = genderFilter === 'all' ? '' : ` (${GENDER_LABELS[genderFilter] || genderFilter})`;
+      toast.success(`${formatLabel(format)}${genderLabel} generated`);
+    }
     catch (err) { toast.error(err.response?.data?.message || 'Failed to generate'); }
     finally { setGenerating(false); }
   };
@@ -78,7 +141,7 @@ export default function ManageTournaments() {
     const match = matches.find((m) => m._id === matchId); if (!match) return;
     const lanes = (match.lanes || []).map((lane) => ({ lane: lane.lane, finishPosition: laneInputs[matchId]?.[lane.lane]?.finishPosition ?? '', finishTime: laneInputs[matchId]?.[lane.lane]?.finishTime ?? '', isQualified: Boolean(laneInputs[matchId]?.[lane.lane]?.isQualified) }));
     setSavingMatch(matchId);
-    try { const r = await API.put(`/tournaments/match/${matchId}`, { lanes }); syncState(r.data.allMatches); toast.success('Heat results saved'); }
+    try { const r = await API.put(`/tournaments/match/${matchId}`, { lanes }); syncState(r.data.allMatches); toast.success(r.data.message || 'Heat results saved'); }
     catch (err) { toast.error(err.response?.data?.message || 'Failed to save heat results'); }
     finally { setSavingMatch(null); }
   };
@@ -94,18 +157,27 @@ export default function ManageTournaments() {
     catch (err) { toast.error(err.response?.data?.message || 'Failed to save field results'); }
     finally { setSavingMatch(null); }
   };
-  const handleGenerateQualifications = async () => {
-    if (!tournament) return;
-    setGeneratingQualifications(true);
-    try { const r = await API.post(`/tournaments/${tournament._id}/generate-qualifications`); syncState(r.data.allMatches); toast.success(r.data.message); }
-    catch (err) { toast.error(err.response?.data?.message || 'Failed to generate qualifications'); }
-    finally { setGeneratingQualifications(false); }
-  };
   const handleDelete = async () => {
     if (!tournament) return;
-    const ok = await confirm({ title: 'Delete Tournament', message: 'This will delete the current bracket, heats, or field flight. Are you sure?', confirmText: 'Delete', isDangerous: true });
+    const genderLabel = tournament.genderFilter && tournament.genderFilter !== 'all' ? ` (${GENDER_LABELS[tournament.genderFilter]})` : '';
+    const ok = await confirm({ title: 'Delete Tournament', message: `This will delete the${genderLabel} bracket, heats, or field flight. Are you sure?`, confirmText: 'Delete', isDangerous: true });
     if (!ok) return;
-    try { await API.delete(`/tournaments/${tournament._id}`); resetState(); toast.success('Tournament deleted'); }
+    try {
+      await API.delete(`/tournaments/${tournament._id}`);
+      // Remove this tournament from allTournaments
+      const remaining = allTournaments.filter((t) => t.tournament._id !== tournament._id);
+      if (remaining.length > 0) {
+        setAllTournaments(remaining);
+        setActiveGenderTab(remaining[0].tournament.genderFilter);
+        setScores(buildScoreState(remaining[0].matches));
+        setLaneInputs(buildLaneState(remaining[0].matches));
+        setFieldInputs(buildFieldState(remaining[0].matches));
+        setScheduleInputs(buildScheduleState(remaining[0].matches));
+      } else {
+        resetState();
+      }
+      toast.success(`Tournament${genderLabel} deleted`);
+    }
     catch (err) { toast.error(err.response?.data?.message || 'Failed to delete'); }
   };
 
@@ -114,7 +186,10 @@ export default function ManageTournaments() {
     if (!tournament || !selectedEventId) return toast.error('No tournament selected');
     setSyncingLeaderboard(true);
     try {
-      const res = await API.post(`/leaderboard/sync-tournament/${selectedEventId}`);
+      const res = await API.post(`/leaderboard/sync-tournament/${selectedEventId}`, {
+        tournamentId: tournament._id,
+        genderFilter: tournament.genderFilter || 'all'
+      });
       toast.success(res.data.message || `Auto-synced ${res.data.synced} winners to leaderboard`);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to sync leaderboard');
@@ -131,7 +206,9 @@ export default function ManageTournaments() {
       let enrichedMatches = matches;
       if ((tournament.format === 'single_elimination' || tournament.format === 'round_robin') && selectedEventId) {
         try {
-          const res = await API.get(`/tournaments/event/${selectedEventId}/print`);
+          const res = await API.get(`/tournaments/event/${selectedEventId}/print`, {
+            params: { genderFilter: tournament.genderFilter || 'all' }
+          });
           enrichedMatches = res.data.matches || matches;
         } catch (err) {
           // If enriched endpoint fails, use regular matches
@@ -486,8 +563,38 @@ export default function ManageTournaments() {
   const generateActionLabel = getGenerateActionLabel(format);
   const participantUnit = getParticipantUnitLabel(selectedEvent, tournament?.format || format);
   const laneCapacity = selectedEvent?.lanesPerHeat || tournament?.eventId?.lanesPerHeat || 8;
+  const totalTrackRounds = useMemo(() => matches.length > 0 ? Math.max(...matches.map((match) => Number(match.round) || 1)) : 1, [matches]);
+  const supportsQualificationForRound = (round) => totalTrackRounds === 1 || Number(round) < totalTrackRounds;
+  const trackStandings = useMemo(() => {
+    if (tournament?.format !== 'track_heats' || matches.length === 0) return [];
 
-  return (
+    const sourceMatches = totalTrackRounds > 1
+      ? matches.filter((match) => (Number(match.round) || 1) === totalTrackRounds)
+      : matches;
+
+    return sourceMatches
+      .flatMap((match) => (match.lanes || []).map((lane) => ({
+        ...lane,
+        heatName: match.heatName || `Heat ${match.matchNumber}`
+      })))
+      .filter((lane) => lane.finishPosition != null || String(lane.finishTime || '').trim())
+      .sort((a, b) => {
+        const hasTimeA = Boolean(String(a.finishTime || '').trim());
+        const hasTimeB = Boolean(String(b.finishTime || '').trim());
+        if (hasTimeA && hasTimeB) {
+          return (parseFloat(a.finishTime) || Infinity) - (parseFloat(b.finishTime) || Infinity)
+            || (a.finishPosition ?? 999) - (b.finishPosition ?? 999)
+            || a.lane - b.lane;
+        }
+        if (a.finishPosition != null && b.finishPosition != null) return a.finishPosition - b.finishPosition || a.lane - b.lane;
+        if (a.finishPosition != null) return -1;
+        if (b.finishPosition != null) return 1;
+        return (parseFloat(a.finishTime) || Infinity) - (parseFloat(b.finishTime) || Infinity);
+      })
+      .slice(0, 3);
+  }, [matches, totalTrackRounds, tournament?.format]);
+
+   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Manage Tournaments</h1>
       <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
@@ -499,7 +606,7 @@ export default function ManageTournaments() {
               {events.map((event) => <option key={event._id} value={event._id}>{event.title} ({event.type})</option>)}
             </select>
           </div>
-          {!tournament && <>
+          {selectedEventId && <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
               <div className="space-y-2">{availableFormats.map((entry) => <label key={entry} className="flex items-center gap-2 cursor-pointer"><input type="radio" name="format" value={entry} checked={format === entry} onChange={(e) => setFormat(e.target.value)} className="accent-blue-600" /><span className="text-sm">{formatLabel(entry)}{entry === 'track_heats' ? ` (${laneCapacity} lanes per heat)` : ''}</span></label>)}</div>
@@ -512,18 +619,63 @@ export default function ManageTournaments() {
             </div>
             <div><button onClick={handleGenerate} disabled={!selectedEventId || generating} className="btn-primary w-full py-2.5 disabled:opacity-50">{generating ? 'Generating...' : generateActionLabel}</button></div>
           </>}
-          {tournament && <div className="md:col-span-2 flex items-end gap-3"><div className="flex-1 text-sm text-gray-500">Format: <strong className="text-gray-800">{formatLabel(tournament.format)}</strong> | {tournament.participantCount || 0} participants</div><button onClick={handlePrintTournament} className="px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-2"><Printer size={16} />Print / PDF</button><button onClick={handleSyncLeaderboard} disabled={syncingLeaderboard} className="px-4 py-2 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100 border border-green-200 transition-colors disabled:opacity-50">{syncingLeaderboard ? 'Syncing...' : '📊 Sync to Leaderboard'}</button><button onClick={handleDelete} className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">Delete Tournament</button></div>}
         </div>
       </div>
 
-      {selectedEventId && !tournament && <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800"><strong>Format note:</strong> {format === 'track_heats' ? `Track heats support both individual races and relay teams, with up to ${laneCapacity} ${participantUnit} per heat.` : format === 'field_flight' ? `Field flight keeps all participants in one ranked list. ${selectedEvent?.scoreOrder === 'asc' ? 'Lower marks rank first.' : 'Higher marks rank first.'}` : 'Bracket generation uses the event filters and selected gender filter.'}</div>}
+      {/* Gender tabs when multiple tournaments exist */}
+      {allTournaments.length > 1 && (
+        <div className="flex gap-2 mb-4">
+          {allTournaments.map((entry) => {
+            const gf = entry.tournament.genderFilter || 'all';
+            const isActive = activeGenderTab === gf;
+            return (
+              <button
+                key={gf}
+                onClick={() => {
+                  setActiveGenderTab(gf);
+                  setScores(buildScoreState(entry.matches));
+                  setLaneInputs(buildLaneState(entry.matches));
+                  setFieldInputs(buildFieldState(entry.matches));
+                  setScheduleInputs(buildScheduleState(entry.matches));
+                }}
+                className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-all ${
+                  isActive
+                    ? gf === 'male' ? 'bg-blue-600 text-white border-blue-600' : gf === 'female' ? 'bg-pink-600 text-white border-pink-600' : 'bg-gray-800 text-white border-gray-800'
+                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {GENDER_LABELS[gf] || gf} ({entry.tournament.participantCount || 0})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tournament info bar */}
+      {tournament && <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex-1 text-sm text-gray-500">
+            Format: <strong className="text-gray-800">{formatLabel(tournament.format)}</strong>
+            {tournament.genderFilter && tournament.genderFilter !== 'all' && <> | <span className={`font-semibold ${tournament.genderFilter === 'male' ? 'text-blue-600' : 'text-pink-600'}`}>{GENDER_LABELS[tournament.genderFilter]}</span></>}
+             | {tournament.participantCount || 0} participants
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handlePrintTournament} className="px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-2"><Printer size={16} />Print / PDF</button>
+            <button onClick={handleSyncLeaderboard} disabled={syncingLeaderboard} className="px-4 py-2 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100 border border-green-200 transition-colors disabled:opacity-50">{syncingLeaderboard ? 'Syncing...' : '📊 Sync to Leaderboard'}</button>
+            <button onClick={handleDelete} className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">Delete{tournament.genderFilter && tournament.genderFilter !== 'all' ? ` ${GENDER_LABELS[tournament.genderFilter]}` : ''} Tournament</button>
+          </div>
+        </div>
+      </div>}
+
+      {selectedEventId && !tournament && <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800"><strong>Format note:</strong> {format === 'track_heats' ? `Track heats support both individual races and relay teams, with up to ${laneCapacity} ${participantUnit} per heat.` : format === 'field_flight' ? `Field flight keeps all participants in one ranked list. ${selectedEvent?.scoreOrder === 'asc' ? 'Lower marks rank first.' : 'Higher marks rank first.'}` : 'Bracket generation uses the event filters and selected gender filter. You can generate separate brackets for males and females.'}</div>}
       {loading && <div className="text-center py-12 text-gray-400"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>Loading tournament...</div>}
-      {!loading && selectedEventId && !tournament && <div className="text-center py-16 text-gray-400"><p className="text-lg">No tournament exists for this event yet.</p><p className="text-sm mt-1">Select a format and click "{generateActionLabel}" to create one.</p></div>}
+      {!loading && selectedEventId && !tournament && <div className="text-center py-16 text-gray-400"><p className="text-lg">No tournament exists for this event yet.</p><p className="text-sm mt-1">Select a format and gender filter, then click "{generateActionLabel}" to create one.</p><p className="text-sm mt-1 text-blue-500">Tip: You can generate separate brackets for Males and Females without deleting either.</p></div>}
 
       {!loading && tournament?.format === 'track_heats' && matches.length > 0 && <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><SummaryCard label="Heats" value={matches.length} /><SummaryCard label="Lane Capacity" value={`${laneCapacity} ${participantUnit}`} /><SummaryCard label="Qualified" value={matches.reduce((sum, m) => sum + (m.lanes || []).filter((lane) => lane.isQualified).length, 0)} /></div>
-        {matches.some((m) => m.status === 'completed') && !matches.some((m) => m.round > 1) && <div className="bg-green-50 border border-green-200 rounded-xl p-6 flex items-start justify-between gap-4"><div><h3 className="text-lg font-bold text-green-900 mb-2">Ready to Generate Qualifications</h3><p className="text-sm text-green-700">Advance top performers by time or position.</p></div><button onClick={handleGenerateQualifications} disabled={generatingQualifications} className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors">{generatingQualifications ? 'Generating...' : 'Generate Qualifications'}</button></div>}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">{Object.entries(groupedByRound).sort(([a], [b]) => Number(a) - Number(b)).map(([round, roundMatches]) => <div key={round} className="space-y-4">{Number(round) > 1 && <h3 className="text-xl font-bold text-gray-900">Round {round}</h3>}{roundMatches.slice().sort((a, b) => a.matchNumber - b.matchNumber).map((match) => <div key={match._id} className={`bg-white rounded-2xl border p-5 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-4"><div><h2 className="text-lg font-semibold text-gray-900">{match.heatName || `Heat ${match.matchNumber}`}</h2><p className="text-xs text-gray-500">{(match.lanes || []).length} {participantUnit} assigned</p></div><StatusBadge status={match.status} /></div><div className="space-y-3">{(match.lanes || []).slice().sort((a, b) => a.lane - b.lane).map((lane) => <div key={`${match._id}-${lane.lane}`} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"><div className="flex items-start justify-between gap-3 mb-3"><div><div className="text-sm font-semibold text-gray-900">Lane {lane.lane}: {lane.label}</div>{lane.uucms && <div className="text-xs text-gray-500">{lane.uucms}</div>}<div className="text-xs text-gray-500">{lane.department || 'Unassigned'}</div></div>{lane.isQualified && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Qualified</span>}</div><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div><label className="block text-xs font-medium text-gray-500 mb-1">Position</label><input type="number" min="1" className="input-field text-sm" value={laneInputs[match._id]?.[lane.lane]?.finishPosition ?? ''} onChange={(e) => setLaneInputs((p) => ({ ...p, [match._id]: { ...(p[match._id] || {}), [lane.lane]: { finishPosition: e.target.value, finishTime: p[match._id]?.[lane.lane]?.finishTime ?? '', isQualified: p[match._id]?.[lane.lane]?.isQualified ?? false } } }))} /></div><div><label className="block text-xs font-medium text-gray-500 mb-1">Time</label><input type="text" className="input-field text-sm" value={laneInputs[match._id]?.[lane.lane]?.finishTime ?? ''} onChange={(e) => setLaneInputs((p) => ({ ...p, [match._id]: { ...(p[match._id] || {}), [lane.lane]: { finishPosition: p[match._id]?.[lane.lane]?.finishPosition ?? '', finishTime: e.target.value, isQualified: p[match._id]?.[lane.lane]?.isQualified ?? false } } }))} /></div><div className="flex items-end"><label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer h-10"><input type="checkbox" checked={Boolean(laneInputs[match._id]?.[lane.lane]?.isQualified)} onChange={(e) => setLaneInputs((p) => ({ ...p, [match._id]: { ...(p[match._id] || {}), [lane.lane]: { finishPosition: p[match._id]?.[lane.lane]?.finishPosition ?? '', finishTime: p[match._id]?.[lane.lane]?.finishTime ?? '', isQualified: e.target.checked } } }))} className="accent-emerald-600" />Mark Qualified</label></div></div></div>)}</div><div className="space-y-2 mt-4"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div><button onClick={() => handleSaveHeat(match._id)} disabled={savingMatch === match._id} className="w-full mt-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Heat Results'}</button></div>)}</div>)}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><SummaryCard label="Heats" value={matches.length} /><SummaryCard label="Lane Capacity" value={`${laneCapacity} ${participantUnit}`} /><SummaryCard label="Marked Qualified" value={matches.reduce((sum, m) => sum + (m.lanes || []).filter((lane) => lane.isQualified).length, 0)} /></div>
+        {!matches.some((m) => m.round > 1) && <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800"><strong>How it works:</strong> Enter positions and save to finish the event in the current heat. Only mark athletes as <strong>Qualified</strong> if you want the system to automatically create the next round after all current heats are saved.</div>}
+        {trackStandings.length > 0 && <div className="bg-white rounded-xl border border-gray-200 p-5"><div className="flex items-center justify-between mb-4"><div><h3 className="text-lg font-bold text-gray-900">{totalTrackRounds > 1 ? 'Final Standings' : 'Current Standings'}</h3><p className="text-sm text-gray-500">Saved positions are shown here immediately.</p></div></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4">{trackStandings.map((lane, index) => <div key={`${lane.applicationId || lane.label}-${lane.lane}-${index}`} className={`rounded-xl border p-4 ${index === 0 ? 'border-yellow-300 bg-yellow-50' : index === 1 ? 'border-gray-300 bg-gray-50' : 'border-orange-300 bg-orange-50'}`}><div className="text-xs font-semibold uppercase tracking-wider text-gray-500">{index === 0 ? '1st Place' : index === 1 ? '2nd Place' : '3rd Place'}</div><div className="mt-2 text-lg font-bold text-gray-900">{lane.label}</div>{lane.uucms && <div className="text-xs text-gray-500 mt-1">{lane.uucms}</div>}<div className="text-sm text-gray-600 mt-1">{lane.department || 'Unassigned'}</div><div className="mt-3 flex items-center justify-between text-xs text-gray-500"><span>{lane.heatName}</span><span>{lane.finishTime ? lane.finishTime : `P${lane.finishPosition}`}</span></div></div>)}</div></div>}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">{Object.entries(groupedByRound).sort(([a], [b]) => Number(a) - Number(b)).map(([round, roundMatches]) => <div key={round} className="space-y-4">{Number(round) > 1 && <h3 className="text-xl font-bold text-gray-900">Round {round}</h3>}{roundMatches.slice().sort((a, b) => a.matchNumber - b.matchNumber).map((match) => <div key={match._id} className={`bg-white rounded-2xl border p-5 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-4"><div><h2 className="text-lg font-semibold text-gray-900">{match.heatName || `Heat ${match.matchNumber}`}</h2><p className="text-xs text-gray-500">{(match.lanes || []).length} {participantUnit} assigned</p></div><StatusBadge status={match.status} /></div><div className="space-y-3">{(match.lanes || []).slice().sort((a, b) => a.lane - b.lane).map((lane) => <div key={`${match._id}-${lane.lane}`} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3"><div className="flex items-start justify-between gap-3 mb-3"><div><div className="text-sm font-semibold text-gray-900">Lane {lane.lane}: {lane.label}</div>{lane.uucms && <div className="text-xs text-gray-500">{lane.uucms}</div>}<div className="text-xs text-gray-500">{lane.department || 'Unassigned'}</div></div>{supportsQualificationForRound(match.round) && lane.isQualified && <span className="text-xs font-semibold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">Qualified</span>}</div><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div><label className="block text-xs font-medium text-gray-500 mb-1">Position</label><input type="number" min="1" className="input-field text-sm" value={laneInputs[match._id]?.[lane.lane]?.finishPosition ?? ''} onChange={(e) => setLaneInputs((p) => ({ ...p, [match._id]: { ...(p[match._id] || {}), [lane.lane]: { finishPosition: e.target.value, finishTime: p[match._id]?.[lane.lane]?.finishTime ?? '', isQualified: p[match._id]?.[lane.lane]?.isQualified ?? false } } }))} /></div><div><label className="block text-xs font-medium text-gray-500 mb-1">Time</label><input type="text" className="input-field text-sm" value={laneInputs[match._id]?.[lane.lane]?.finishTime ?? ''} onChange={(e) => setLaneInputs((p) => ({ ...p, [match._id]: { ...(p[match._id] || {}), [lane.lane]: { finishPosition: p[match._id]?.[lane.lane]?.finishPosition ?? '', finishTime: e.target.value, isQualified: p[match._id]?.[lane.lane]?.isQualified ?? false } } }))} /></div>{supportsQualificationForRound(match.round) && <div className="flex items-end"><label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer h-10"><input type="checkbox" checked={Boolean(laneInputs[match._id]?.[lane.lane]?.isQualified)} onChange={(e) => setLaneInputs((p) => ({ ...p, [match._id]: { ...(p[match._id] || {}), [lane.lane]: { finishPosition: p[match._id]?.[lane.lane]?.finishPosition ?? '', finishTime: p[match._id]?.[lane.lane]?.finishTime ?? '', isQualified: e.target.checked } } }))} className="accent-emerald-600" />Mark Qualified</label></div>}</div></div>)}</div><div className="space-y-2 mt-4"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div><button onClick={() => handleSaveHeat(match._id)} disabled={savingMatch === match._id} className="w-full mt-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Heat Results'}</button></div>)}</div>)}</div>
       </div>}
 
       {!loading && tournament?.format === 'field_flight' && matches.length > 0 && <div className="space-y-6">

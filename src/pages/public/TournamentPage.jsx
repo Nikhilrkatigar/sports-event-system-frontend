@@ -9,20 +9,41 @@ import FieldFlightBoard from '../../components/public/FieldFlightBoard';
 import API from '../../utils/api';
 import { formatLabel } from '../../utils/tournaments';
 
+const GENDER_LABELS = { all: 'All', male: 'Boys', female: 'Girls' };
+
 export default function TournamentPage() {
   const { eventId } = useParams();
-  const [tournament, setTournament] = useState(null);
-  const [matches, setMatches] = useState([]);
+  const [allTournaments, setAllTournaments] = useState([]);
+  const [activeGenderTab, setActiveGenderTab] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const activeTournamentEntry = useMemo(() => {
+    if (allTournaments.length === 0) return null;
+    if (activeGenderTab) {
+      return allTournaments.find((entry) => (entry.tournament?.genderFilter || 'all') === activeGenderTab) || allTournaments[0];
+    }
+    return allTournaments[0];
+  }, [allTournaments, activeGenderTab]);
+
+  const tournament = activeTournamentEntry?.tournament || null;
+  const matches = activeTournamentEntry?.matches || [];
+
   const loadData = async () => {
+    setLoading(true);
     try {
       const response = await API.get(`/tournaments/event/${eventId}`);
-      setTournament(response.data.tournament);
-      setMatches(response.data.matches);
+      if (Array.isArray(response.data.allTournaments) && response.data.allTournaments.length > 0) {
+        setAllTournaments(response.data.allTournaments);
+        setActiveGenderTab(response.data.allTournaments[0]?.tournament?.genderFilter || 'all');
+      } else {
+        setAllTournaments([{ tournament: response.data.tournament, matches: response.data.matches }]);
+        setActiveGenderTab(response.data.tournament?.genderFilter || 'all');
+      }
       setError(null);
     } catch (err) {
+      setAllTournaments([]);
+      setActiveGenderTab(null);
       if (err.response?.status === 404) {
         setError('No tournament schedule has been created for this event yet.');
       } else {
@@ -42,15 +63,25 @@ export default function TournamentPage() {
     const socket = io('/', { transports: ['websocket', 'polling'] });
     socket.emit('join_tournament', tournament._id);
     socket.on('tournament_match_updated', ({ match }) => {
-      setMatches((previous) => {
-        const exists = previous.some((entry) => entry._id === match._id);
-        const next = exists ? previous.map((entry) => (entry._id === match._id ? { ...entry, ...match } : entry)) : [...previous, match];
-        const sorted = next.sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber);
-        if (sorted.length > 0 && sorted.every((entry) => entry.status === 'completed')) {
-          setTournament((previousTournament) => previousTournament ? { ...previousTournament, status: 'completed' } : previousTournament);
-        }
-        return sorted;
-      });
+      setAllTournaments((previous) => previous.map((entry) => {
+        if (entry.tournament?._id !== tournament._id) return entry;
+
+        const currentMatches = entry.matches || [];
+        const exists = currentMatches.some((item) => item._id === match._id);
+        const nextMatches = exists
+          ? currentMatches.map((item) => (item._id === match._id ? { ...item, ...match } : item))
+          : [...currentMatches, match];
+        const sortedMatches = nextMatches.sort((a, b) => a.round - b.round || a.matchNumber - b.matchNumber);
+        const nextTournament = sortedMatches.length > 0 && sortedMatches.every((item) => item.status === 'completed')
+          ? { ...entry.tournament, status: 'completed' }
+          : entry.tournament;
+
+        return {
+          ...entry,
+          tournament: nextTournament,
+          matches: sortedMatches
+        };
+      }));
     });
     return () => {
       socket.emit('leave_tournament', tournament._id);
@@ -95,6 +126,17 @@ export default function TournamentPage() {
               <span className="text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full font-medium">
                 {formatLabel(tournament.format)}
               </span>
+              {tournament.genderFilter && (
+                <span className={`text-sm px-3 py-1 rounded-full font-medium ${
+                  tournament.genderFilter === 'male'
+                    ? 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300'
+                    : tournament.genderFilter === 'female'
+                      ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                }`}>
+                  {GENDER_LABELS[tournament.genderFilter] || tournament.genderFilter}
+                </span>
+              )}
               <span className={`text-sm px-3 py-1 rounded-full font-medium ${
                 tournament.status === 'completed' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' :
                 tournament.status === 'in_progress' ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' :
@@ -109,6 +151,32 @@ export default function TournamentPage() {
           )}
           <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">Live updates enabled</p>
         </div>
+
+        {!loading && !error && allTournaments.length > 1 && (
+          <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
+            {allTournaments.map((entry) => {
+              const gender = entry.tournament?.genderFilter || 'all';
+              const isActive = activeGenderTab === gender;
+              return (
+                <button
+                  key={gender}
+                  onClick={() => setActiveGenderTab(gender)}
+                  className={`px-4 py-2 rounded-full border text-sm font-semibold transition-colors ${
+                    isActive
+                      ? gender === 'male'
+                        ? 'bg-sky-600 text-white border-sky-600'
+                        : gender === 'female'
+                          ? 'bg-pink-600 text-white border-pink-600'
+                          : 'bg-gray-800 text-white border-gray-800'
+                      : 'bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  {GENDER_LABELS[gender] || gender} ({entry.tournament?.participantCount || 0})
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {loading && (
           <div className="text-center py-20 text-gray-400 dark:text-gray-500">

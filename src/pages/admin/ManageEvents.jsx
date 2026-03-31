@@ -154,7 +154,7 @@ export default function ManageEvents() {
   const toggleRegistration = async (event) => {
     const previousEvents = events;
     const newRegistrationOpen = !event.registrationOpen;
-    const newStatus = newRegistrationOpen ? 'open' : 'published';
+    const newStatus = newRegistrationOpen ? 'open' : 'closed';
     
     setEvents(prev => prev.map(item =>
       item._id === event._id ? { ...item, registrationOpen: newRegistrationOpen, status: newStatus } : item
@@ -523,7 +523,7 @@ export default function ManageEvents() {
                     </div>
                   </div>
                 )}
-                {(event.status === 'published' || event.status === 'open' || event.status === 'full') && (
+                {(event.status === 'published' || event.status === 'open' || event.status === 'full' || event.status === 'closed') && (
                   <button
                     onClick={() => toggleRegistration(event)}
                     className={`w-full mb-2 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 transform hover:scale-105 ${

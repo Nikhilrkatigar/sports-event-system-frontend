@@ -4,12 +4,13 @@ export const EVENT_STATUS_OPTIONS = [
   { value: 'published', label: 'Published' },
   { value: 'open', label: 'Open for Registration' },
   { value: 'full', label: 'Full' },
+  { value: 'closed', label: 'Closed' },
   { value: 'live', label: 'Live' },
   { value: 'completed', label: 'Completed' },
   { value: 'archived', label: 'Archived' }
 ];
 
-export const PUBLIC_EVENT_STATUSES = ['coming_soon', 'published', 'open', 'full', 'live', 'completed'];
+export const PUBLIC_EVENT_STATUSES = ['coming_soon', 'published', 'open', 'full', 'closed', 'live', 'completed'];
 
 export const getEventStatusMeta = (event) => {
   const status = String(event?.status || 'draft').toLowerCase();
@@ -19,6 +20,7 @@ export const getEventStatusMeta = (event) => {
     published: { label: 'Published', className: 'bg-slate-100 text-slate-700 border-slate-200' },
     open: { label: 'Open', className: 'bg-green-100 text-green-700 border-green-200' },
     full: { label: 'Full', className: 'bg-orange-100 text-orange-700 border-orange-200' },
+    closed: { label: 'Closed', className: 'bg-red-100 text-red-700 border-red-200' },
     live: { label: 'Live', className: 'bg-rose-100 text-rose-700 border-rose-200' },
     completed: { label: 'Completed', className: 'bg-blue-100 text-blue-700 border-blue-200' },
     archived: { label: 'Archived', className: 'bg-zinc-100 text-zinc-700 border-zinc-200' }
