@@ -491,6 +491,7 @@ export default function ManageTournaments() {
                 <thead>
                   <tr style="background: #f0f0f0; border-bottom: 2px solid #333;">
                     <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Lane</th>
+                    <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Reg #</th>
                     <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">Participant</th>
                     <th style="border: 1px solid #ddd; padding: 6px; text-align: left;">UUCMS</th>
                     <th style="border: 1px solid #ddd; padding: 6px; text-align: center;">Position</th>
@@ -501,6 +502,7 @@ export default function ManageTournaments() {
                   ${(match.lanes || []).sort((a, b) => a.lane - b.lane).map((lane) => `
                     <tr>
                       <td style="border: 1px solid #ddd; padding: 6px; text-align: center; font-weight: bold;">${lane.lane}</td>
+                      <td style="border: 1px solid #ddd; padding: 6px;">${lane.registrationNumber || '-'}</td>
                       <td style="border: 1px solid #ddd; padding: 6px;">${lane.label}</td>
                       <td style="border: 1px solid #ddd; padding: 6px;">${lane.uucms || '-'}</td>
                       <td style="border: 1px solid #ddd; padding: 6px; text-align: center; padding-bottom: 12px;">${lane.finishPosition ? `P${lane.finishPosition}` : '______'}</td>
