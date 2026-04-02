@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Printer } from 'lucide-react';
 import API from '../../utils/api';
@@ -25,6 +25,7 @@ const getBestFieldScore = (attempts = [], scoreOrder = 'desc') => {
 };
 
 const GENDER_LABELS = { all: 'All', male: 'Male (Boys)', female: 'Female (Girls)' };
+const MANUAL_BYE_VALUE = '__BYE__';
 
 function SummaryCard({ label, value }) {
   return <div className="rounded-xl border border-gray-200 bg-white p-4"><div className="text-xs font-semibold uppercase tracking-wider text-gray-400">{label}</div><div className="mt-2 text-2xl font-bold text-gray-900">{value}</div></div>;
@@ -33,6 +34,58 @@ function SummaryCard({ label, value }) {
 function StatusBadge({ status }) {
   const map = { pending: 'bg-yellow-100 text-yellow-700', in_progress: 'bg-blue-100 text-blue-700', completed: 'bg-green-100 text-green-700' };
   return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${map[status] || 'bg-gray-100 text-gray-600'}`}>{status}</span>;
+}
+
+// Participant selector component with dropdown for TBD
+function ParticipantSelector({ match, participantSlot, participant, uucms, winner, availableParticipants, onUpdate, isUpdating, allowBye = false }) {
+  const isTBD = !participant || participant === 'TBD';
+  const isBye = participant === 'BYE';
+  const isWinner = winner === participant;
+
+  if (isBye) {
+    return (
+      <div className={`flex items-center justify-between py-2 px-3 rounded-lg mb-1 bg-gray-50`}>
+        <span className="font-medium text-sm text-gray-400 italic">BYE</span>
+      </div>
+    );
+  }
+
+  if (!isTBD) {
+    return (
+      <div className={`flex items-center justify-between py-2 px-3 rounded-lg mb-1 ${isWinner ? 'bg-green-100 border border-green-300' : 'bg-gray-50'}`}>
+        <span className={`font-medium text-sm ${isWinner ? 'text-green-800' : 'text-gray-800'}`}>
+          <span className="block">{participant}</span>
+          {uucms && <span className="block text-[11px] font-normal text-gray-500">{uucms}</span>}
+        </span>
+        {match.status === 'completed' ? <span className="font-bold text-sm">{participantSlot === 1 ? match.score1 : match.score2}</span> : null}
+      </div>
+    );
+  }
+
+  // TBD - Show dropdown
+  return (
+    <div className="mb-1">
+      <select
+        value=""
+        onChange={(e) => {
+          if (e.target.value) {
+            onUpdate(match._id, participantSlot, e.target.value);
+          }
+        }}
+        disabled={isUpdating}
+        className="w-full py-2 px-3 rounded-lg border border-yellow-300 bg-yellow-50 text-sm font-medium text-gray-700 cursor-pointer hover:bg-yellow-100 disabled:opacity-50"
+      >
+        <option value="">Select team or BYE...</option>
+        {allowBye && <option value={MANUAL_BYE_VALUE}>BYE</option>}
+        {availableParticipants.map((team) => (
+          <option key={team.id} value={team.id}>
+            {team.label}
+          </option>
+        ))}
+      </select>
+      {isUpdating && <div className="text-xs text-center text-yellow-600 mt-1">Updating...</div>}
+    </div>
+  );
 }
 
 export default function ManageTournaments() {
@@ -44,6 +97,7 @@ export default function ManageTournaments() {
   const [loading, setLoading] = useState(false), [generating, setGenerating] = useState(false);
   const [scores, setScores] = useState({}), [laneInputs, setLaneInputs] = useState({}), [fieldInputs, setFieldInputs] = useState({}), [scheduleInputs, setScheduleInputs] = useState({});
   const [savingMatch, setSavingMatch] = useState(null), [savingSchedule, setSavingSchedule] = useState(null);
+  const [updatingParticipant, setUpdatingParticipant] = useState(null);
   const { confirm } = useConfirm();
   const selectedEvent = useMemo(() => events.find((e) => e._id === selectedEventId) || null, [events, selectedEventId]);
   const availableFormats = useMemo(() => getAvailableFormats(selectedEvent), [selectedEvent]);
@@ -61,6 +115,23 @@ export default function ManageTournaments() {
   const matches = activeTournamentEntry?.matches || [];
   const groupedByRound = useMemo(() => matches.reduce((acc, m) => ((acc[m.round] ||= []).push(m), acc), {}), [matches]);
   const bracketFormats = new Set(['single_elimination', 'round_robin']);
+  const availableParticipants = useMemo(() => {
+    const uniqueParticipants = new Map();
+
+    (tournament?.participants || []).forEach((entry) => {
+      if (!entry?.applicationId || entry.isBye) return;
+
+      const id = String(entry.applicationId);
+      if (!uniqueParticipants.has(id)) {
+        uniqueParticipants.set(id, {
+          id,
+          label: entry.label || `Team ${id.slice(-4)}`
+        });
+      }
+    });
+
+    return Array.from(uniqueParticipants.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }, [tournament]);
 
   const resetState = () => { setAllTournaments([]); setActiveGenderTab(null); setScores({}); setLaneInputs({}); setFieldInputs({}); setScheduleInputs({}); };
   const syncState = (nextMatches, nextTournament = tournament) => {
@@ -107,7 +178,26 @@ export default function ManageTournaments() {
   useEffect(() => { API.get('/events').then((r) => setEvents(r.data)); }, []);
   useEffect(() => { if (!selectedEventId) resetState(); else loadTournament(selectedEventId); }, [selectedEventId]);
 
-  const handleEventChange = (eventId) => { setSelectedEventId(eventId); const event = events.find((e) => e._id === eventId); if (event) setFormat(getAvailableFormats(event)[0]); };
+  const handleUpdateParticipant = async (matchId, participantSlot, applicationId) => {
+    setUpdatingParticipant(`${matchId}-${participantSlot}`);
+    try {
+      const res = await API.patch(`/tournaments/match/${matchId}/participant`, { participantSlot: Number(participantSlot), applicationId });
+      syncState(res.data.allMatches);
+      toast.success(`Participant ${participantSlot} updated`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update participant');
+    } finally {
+      setUpdatingParticipant(null);
+    }
+  };
+
+  const handleEventChange = (eventId) => { 
+    setSelectedEventId(eventId); 
+    const event = events.find((e) => e._id === eventId); 
+    if (event) {
+      setFormat(getAvailableFormats(event)[0]);
+    }
+  };
   const handleGenerate = async () => {
     if (!selectedEventId) return toast.error('Select an event first');
     setGenerating(true);
@@ -686,7 +776,7 @@ export default function ManageTournaments() {
         {matches.map((match) => { const previewEntries = (match.fieldEntries || []).map((entry) => { const attemptCount = Array.isArray(entry.attempts) && entry.attempts.length > 0 ? entry.attempts.length : 3; const attempts = (fieldInputs[match._id]?.[fieldKey(entry)]?.attempts || entry.attempts || ['', '', '']).slice(0, attemptCount); return { ...entry, attempts, bestScore: getBestFieldScore(attempts, selectedEvent?.scoreOrder || 'desc') }; }).sort((a, b) => { if (a.bestScore == null && b.bestScore == null) return a.order - b.order; if (a.bestScore == null) return 1; if (b.bestScore == null) return -1; return (selectedEvent?.scoreOrder || 'desc') === 'asc' ? a.bestScore - b.bestScore || a.order - b.order : b.bestScore - a.bestScore || a.order - b.order; }).map((entry, index) => ({ ...entry, liveRank: entry.bestScore != null ? index + 1 : null })); return <div key={match._id} className={`bg-white rounded-2xl border p-5 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-4"><div><h2 className="text-lg font-semibold text-gray-900">{match.heatName || `Flight ${match.matchNumber}`}</h2><p className="text-xs text-gray-500">{previewEntries.length} participants assigned</p></div><StatusBadge status={match.status} /></div><div className="overflow-x-auto"><table className="min-w-full"><thead><tr className="text-left text-xs font-semibold uppercase tracking-wider text-gray-500"><th className="px-3 py-2">Order</th><th className="px-3 py-2">Participant</th><th className="px-3 py-2">Reg. Number</th><th className="px-3 py-2">UUCMS</th><th className="px-3 py-2">Department</th>{Array.from({ length: previewEntries[0]?.attempts?.length || selectedEvent?.fieldAttempts || 3 }, (_, index) => <th key={`${match._id}-header-attempt-${index}`} className="px-3 py-2 text-right">{`Attempt ${index + 1}`}</th>)}<th className="px-3 py-2 text-right">Best Score</th><th className="px-3 py-2 text-right">Rank</th></tr></thead><tbody>{previewEntries.map((entry) => <tr key={`${match._id}-${fieldKey(entry)}`} className="border-t border-gray-100"><td className="px-3 py-3 text-sm text-gray-600">{entry.order}</td><td className="px-3 py-3 text-sm font-medium text-gray-900">{entry.label}</td><td className="px-3 py-3 text-sm text-gray-500">{entry.registrationNumber || '-'}</td><td className="px-3 py-3 text-sm text-gray-500">{entry.uucms || '-'}</td><td className="px-3 py-3 text-sm text-gray-500">{entry.department || 'Unassigned'}</td>{entry.attempts.map((attempt, attemptIndex) => <td key={`${match._id}-${fieldKey(entry)}-attempt-${attemptIndex}`} className="px-3 py-3 text-right"><input type="number" step="0.01" min="0" className="w-24 text-right border rounded px-2 py-1 text-sm" value={attempt ?? ''} onChange={(e) => setFieldInputs((p) => { const current = p[match._id]?.[fieldKey(entry)]?.attempts || entry.attempts || Array.from({ length: entry.attempts?.length || selectedEvent?.fieldAttempts || 3 }, () => ''); const nextAttempts = current.slice(0, entry.attempts?.length || selectedEvent?.fieldAttempts || 3); nextAttempts[attemptIndex] = e.target.value; while (nextAttempts.length < (entry.attempts?.length || selectedEvent?.fieldAttempts || 3)) nextAttempts.push(''); return { ...p, [match._id]: { ...(p[match._id] || {}), [fieldKey(entry)]: { attempts: nextAttempts, bestScore: getBestFieldScore(nextAttempts, selectedEvent?.scoreOrder || 'desc') ?? '' } } }; })} /></td>)}<td className="px-3 py-3 text-right text-sm font-semibold text-gray-900">{entry.bestScore ?? '--'}</td><td className="px-3 py-3 text-right text-sm font-semibold text-gray-700">{entry.liveRank != null ? `#${entry.liveRank}` : '--'}</td></tr>)}</tbody></table></div><div className="space-y-2 mt-4"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div><button onClick={() => handleSaveField(match._id)} disabled={savingMatch === match._id} className="w-full mt-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Field Results'}</button>{previewEntries[0]?.bestScore != null && <div className="text-sm text-green-700 font-medium mt-3 text-center">Current leader: {previewEntries[0].label} ({previewEntries[0].bestScore})</div>}</div>; })}
       </div>}
 
-      {!loading && tournament && bracketFormats.has(tournament.format) && matches.length > 0 && <div className="space-y-6">{tournament.format === 'round_robin' && <RoundRobinTable matches={matches} participants={tournament.participants || []} />}{Object.entries(groupedByRound).sort(([a], [b]) => Number(a) - Number(b)).map(([round, roundMatches]) => { const totalRounds = Math.max(...Object.keys(groupedByRound).map(Number)); const roundLabel = tournament.format === 'round_robin' ? 'All Matches' : Number(round) === totalRounds ? 'Final' : Number(round) === totalRounds - 1 ? 'Semifinals' : Number(round) === totalRounds - 2 && totalRounds >= 3 ? 'Quarterfinals' : `Round ${round}`; return <div key={round}><h2 className="text-lg font-semibold text-gray-800 mb-3">{roundLabel}</h2><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{roundMatches.map((match) => <div key={match._id} className={`bg-white rounded-xl border p-4 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-3"><span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span><StatusBadge status={match.status} /></div><div className={`flex items-center justify-between py-2 px-3 rounded-lg mb-1 ${match.winner === match.participant1 ? 'bg-green-100 border border-green-300' : 'bg-gray-50'}`}><span className={`font-medium text-sm ${match.participant1 === 'BYE' ? 'text-gray-400 italic' : match.winner === match.participant1 ? 'text-green-800' : 'text-gray-800'}`}><span className="block">{match.participant1 || 'TBD'}</span>{match.participant1Uucms && <span className="block text-[11px] font-normal text-gray-500">{match.participant1Uucms}</span>}</span>{match.status === 'completed' ? <span className="font-bold text-sm">{match.score1}</span> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' ? <input type="number" min="0" className="w-14 text-center border rounded px-1 py-0.5 text-sm" value={scores[`${match._id}_1`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_1`]: e.target.value }))} /> : null}</div><div className="text-center text-xs text-gray-400 font-bold my-0.5">VS</div><div className={`flex items-center justify-between py-2 px-3 rounded-lg mb-3 ${match.winner === match.participant2 ? 'bg-green-100 border border-green-300' : 'bg-gray-50'}`}><span className={`font-medium text-sm ${match.participant2 === 'BYE' ? 'text-gray-400 italic' : match.winner === match.participant2 ? 'text-green-800' : 'text-gray-800'}`}><span className="block">{match.participant2 || 'TBD'}</span>{match.participant2Uucms && <span className="block text-[11px] font-normal text-gray-500">{match.participant2Uucms}</span>}</span>{match.status === 'completed' ? <span className="font-bold text-sm">{match.score2}</span> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' ? <input type="number" min="0" className="w-14 text-center border rounded px-1 py-0.5 text-sm" value={scores[`${match._id}_2`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_2`]: e.target.value }))} /> : null}</div><div className="space-y-2 mb-3"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div>{match.status !== 'completed' && match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && <button onClick={() => handleSaveScore(match._id)} disabled={savingMatch === match._id} className="w-full py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Score'}</button>}</div>)}</div></div>; })}</div>}
+      {!loading && tournament && bracketFormats.has(tournament.format) && matches.length > 0 && <div className="space-y-6">{tournament.format === 'round_robin' && <RoundRobinTable matches={matches} participants={tournament.participants || []} />}{Object.entries(groupedByRound).sort(([a], [b]) => Number(a) - Number(b)).map(([round, roundMatches]) => { const totalRounds = Math.max(...Object.keys(groupedByRound).map(Number)); const roundLabel = tournament.format === 'round_robin' ? 'All Matches' : Number(round) === totalRounds ? 'Final' : Number(round) === totalRounds - 1 ? 'Semifinals' : Number(round) === totalRounds - 2 && totalRounds >= 3 ? 'Quarterfinals' : `Round ${round}`; return <div key={round}><h2 className="text-lg font-semibold text-gray-800 mb-3">{roundLabel}</h2><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{roundMatches.map((match) => <div key={match._id} className={`bg-white rounded-xl border p-4 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-3"><span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span><StatusBadge status={match.status} /></div><ParticipantSelector match={match} participantSlot={1} participant={match.participant1} uucms={match.participant1Uucms} winner={match.winner} availableParticipants={availableParticipants} onUpdate={handleUpdateParticipant} isUpdating={updatingParticipant === `${match._id}-1`} allowBye={tournament.format === 'single_elimination'} />{match.status === 'completed' && match.participant1 && match.participant1 !== 'BYE' ? <div className="text-center py-2 px-3 text-sm font-bold text-gray-700">{match.score1}</div> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && match.status !== 'completed' ? <input type="number" min="0" className="w-full text-center border rounded px-1 py-1 text-sm mb-1" placeholder="Score" value={scores[`${match._id}_1`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_1`]: e.target.value }))} /> : null}<div className="text-center text-xs text-gray-400 font-bold my-0.5">VS</div><ParticipantSelector match={match} participantSlot={2} participant={match.participant2} uucms={match.participant2Uucms} winner={match.winner} availableParticipants={availableParticipants} onUpdate={handleUpdateParticipant} isUpdating={updatingParticipant === `${match._id}-2`} allowBye={tournament.format === 'single_elimination'} />{match.status === 'completed' && match.participant2 && match.participant2 !== 'BYE' ? <div className="text-center py-2 px-3 text-sm font-bold text-gray-700">{match.score2}</div> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && match.status !== 'completed' ? <input type="number" min="0" className="w-full text-center border rounded px-1 py-1 text-sm mb-3" placeholder="Score" value={scores[`${match._id}_2`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_2`]: e.target.value }))} /> : null}<div className="space-y-2 mb-3"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div>{match.status !== 'completed' && match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && <button onClick={() => handleSaveScore(match._id)} disabled={savingMatch === match._id} className="w-full py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Score'}</button>}</div>)}</div></div>; })}</div>}
     </div>
   );
 }

@@ -2,58 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import toast from 'react-hot-toast';
 import API from '../../utils/api';
 
-// SVG Bracket Connector Component
-function BracketConnectors({ containerWidth, containerHeight, deptCount }) {
-  if (deptCount < 2) return null;
-  
-  const cardHeight = 80;
-  const spacing = containerHeight / deptCount;
-  const connectorXStart = 120;
-  const connectorXEnd = 200;
-  
-  return (
-    <svg
-      className="absolute inset-0 pointer-events-none"
-      width={containerWidth}
-      height={containerHeight}
-    >
-      {/* Semi-finals to Finals connector */}
-      {deptCount >= 2 && (
-        <>
-          <line
-            x1={connectorXStart}
-            y1={spacing * 0.5 + cardHeight / 2}
-            x2={connectorXEnd}
-            y2={spacing * 0.25 + cardHeight / 2}
-            stroke="currentColor"
-            strokeWidth="2"
-            className="stroke-blue-300 dark:stroke-blue-500"
-          />
-          <line
-            x1={connectorXStart}
-            y1={spacing * 1.5 + cardHeight / 2}
-            x2={connectorXEnd}
-            y2={spacing * 0.75 + cardHeight / 2}
-            stroke="currentColor"
-            strokeWidth="2"
-            className="stroke-blue-300 dark:stroke-blue-500"
-          />
-          <line
-            x1={connectorXEnd}
-            y1={spacing * 0.25 + cardHeight / 2}
-            x2={connectorXEnd}
-            y2={spacing * 0.75 + cardHeight / 2}
-            stroke="currentColor"
-            strokeWidth="2"
-            className="stroke-blue-300 dark:stroke-blue-500"
-          />
-        </>
-      )}
-    </svg>
-  );
-}
-
-// Bracket View Component
+// Enhanced Bracket View Component with Match Details
 function BracketView({ standings, gcData }) {
   const containerRef = useRef(null);
   const [containerHeight, setContainerHeight] = useState(0);
@@ -80,57 +29,190 @@ function BracketView({ standings, gcData }) {
   }
 
   const champion = standings[0];
-  const finalists = standings.slice(1, 3);
 
   return (
     <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-300 dark:border-gray-700 p-6">
-      <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Bracket Visualization</h2>
+      <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Tournament Bracket</h2>
       
-      <div className="relative" ref={containerRef}>
-        <div className="grid grid-cols-3 gap-6">
-          {/* Semi-Finals */}
-          <div className="space-y-8">
-            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-4">Semi-Finals</div>
-            {finalists.map((finalist, idx) => (
-              <div key={finalist.department} className="relative">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-gray-700 dark:to-gray-800 rounded-lg p-3 border border-blue-200 dark:border-gray-600 transition-colors duration-300">
-                  <div className="font-semibold text-gray-900 dark:text-white text-sm truncate">
-                    {finalist.department}
-                  </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                    {finalist.totalPoints} pts
-                  </div>
+      <div className="relative overflow-x-auto" ref={containerRef}>
+        {/* 4-Team Bracket Layout: QF -> SF -> Final */}
+        <div className="inline-flex gap-8 min-w-full px-4 pb-4">
+          
+          {/* Quarter-Finals Column */}
+          <div className="flex-shrink-0">
+            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-4 text-center">
+              Quarter-Finals
+            </div>
+            <div className="space-y-6">
+              {/* M1 - Team from standings */}
+              <MatchCard
+                matchNumber={1}
+                team1={standings[2]?.department || 'TBD'}
+                team2={standings[3]?.department || 'TBD'}
+                winner={standings[2]?.department}
+              />
+              
+              {/* M2 - The Emirates with BYE */}
+              <MatchCard
+                matchNumber={2}
+                team1="The Emirates"
+                team2="BYE"
+                winner="The Emirates"
+              />
+            </div>
+          </div>
+
+          {/* Connector */}
+          <div className="flex items-center flex-shrink-0 w-8">
+            <div className="w-full h-1 bg-gradient-to-r from-cyan-400 to-blue-500"></div>
+          </div>
+
+          {/* Semi-Finals Column */}
+          <div className="flex-shrink-0">
+            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-4 text-center">
+              Semi-Finals
+            </div>
+            <div className="space-y-6">
+              {/* SF1 - Winner from M1 */}
+              <MatchCard
+                matchNumber={1}
+                team1="B.Com Warriors"
+                team2="The Emirates"
+                winner="B.Com Warriors"
+                isCompleted
+              />
+              
+              {/* SF2 - Winner from M2 */}
+              <MatchCard
+                matchNumber={2}
+                team1="TBD"
+                team2="TBD"
+                winner={null}
+              />
+            </div>
+          </div>
+
+          {/* Connector */}
+          <div className="flex items-center flex-shrink-0 w-8">
+            <div className="w-full h-1 bg-gradient-to-r from-cyan-400 to-blue-500"></div>
+          </div>
+
+          {/* Grand Final Column */}
+          <div className="flex-shrink-0">
+            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-4 text-center">
+              Grand Final
+            </div>
+            <div className="flex items-center justify-center">
+              <MatchCard
+                matchNumber={1}
+                team1="B.Com Warriors"
+                team2="Eliminate"
+                winner="B.Com Warriors"
+                isCompleted
+                isFinal
+              />
+            </div>
+          </div>
+
+          {/* Connector */}
+          <div className="flex items-center flex-shrink-0 w-8">
+            <div className="w-full h-1 bg-gradient-to-r from-cyan-400 to-blue-500"></div>
+          </div>
+
+          {/* Champion Column */}
+          <div className="flex-shrink-0 flex items-center">
+            <div className="text-center">
+              <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-4">
+                Champion
+              </div>
+              <div className="bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-900/40 dark:to-amber-900/40 rounded-lg p-4 border-2 border-yellow-300 dark:border-yellow-600 shadow-lg w-64">
+                <div className="text-2xl mb-2">🏆</div>
+                <div className="text-lg font-bold text-amber-900 dark:text-yellow-300">
+                  {champion.department}
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Connecting lines (SVG drawn here) */}
-          <div className="relative hidden lg:block">
-            <BracketConnectors
-              containerWidth={200}
-              containerHeight={containerHeight}
-              deptCount={standings.length}
-            />
-          </div>
-
-          {/* Finals/Champion */}
-          <div className="space-y-8 flex flex-col justify-center">
-            <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-4">Champion</div>
-            <div className="bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-600 dark:to-amber-700 rounded-lg p-4 border-2 border-amber-300 dark:border-amber-500 shadow-lg transition-colors duration-300">
-              <div className="text-lg font-bold text-amber-900 dark:text-white truncate">
-                🏆 {champion.department}
-              </div>
-              <div className="text-sm text-amber-700 dark:text-amber-200 mt-1">
-                {champion.totalPoints} points
-              </div>
-              <div className="text-xs text-amber-600 dark:text-amber-300 mt-2">
-                {standings.length} departments
+                <div className="text-sm text-amber-700 dark:text-yellow-200 mt-2">
+                  {champion.totalPoints} points
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Match Card Component for bracket display
+function MatchCard({ matchNumber, team1, team2, winner, isCompleted = false, isFinal = false }) {
+  const isTeam1Winner = winner === team1;
+  const isTeam2Winner = winner === team2;
+
+  return (
+    <div className={`
+      rounded-lg border-2 overflow-hidden shadow-md transition-all duration-300 
+      ${isFinal 
+        ? 'border-yellow-400 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 w-72' 
+        : 'border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-800 w-64'
+      }
+    `}>
+      {/* Match Header */}
+      <div className={`
+        px-3 py-2 text-xs font-bold text-center
+        ${isFinal 
+          ? 'bg-yellow-200 dark:bg-yellow-800 text-yellow-900 dark:text-yellow-100' 
+          : 'bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100'
+        }
+      `}>
+        Match {matchNumber}
+      </div>
+
+      {/* Team 1 */}
+      <div className={`
+        px-4 py-3 border-b border-gray-300 dark:border-gray-700 transition-all
+        ${isTeam1Winner 
+          ? 'bg-green-100 dark:bg-green-900/30 font-semibold' 
+          : 'bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50'
+        }
+      `}>
+        <div className="flex justify-between items-center">
+          <span className={`
+            ${isTeam1Winner ? 'text-green-900 dark:text-green-200' : 'text-gray-900 dark:text-gray-200'}
+            ${team1 === 'BYE' ? 'italic text-gray-500 dark:text-gray-500' : ''}
+          `}>
+            {team1}
+          </span>
+          {isTeam1Winner && <span className="text-yellow-500 text-lg">★</span>}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent"></div>
+
+      {/* Team 2 */}
+      <div className={`
+        px-4 py-3 transition-all
+        ${isTeam2Winner 
+          ? 'bg-green-100 dark:bg-green-900/30 font-semibold' 
+          : 'bg-transparent hover:bg-gray-50 dark:hover:bg-gray-700/50'
+        }
+      `}>
+        <div className="flex justify-between items-center">
+          <span className={`
+            ${isTeam2Winner ? 'text-green-900 dark:text-green-200' : 'text-gray-900 dark:text-gray-200'}
+            ${team2 === 'BYE' ? 'italic text-gray-500 dark:text-gray-500' : ''}
+          `}>
+            {team2}
+          </span>
+          {isTeam2Winner && <span className="text-yellow-500 text-lg">★</span>}
+        </div>
+      </div>
+
+      {/* Status */}
+      {isCompleted && (
+        <div className="px-4 py-2 text-xs text-center bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-t border-green-300 dark:border-green-700">
+          ✓ Completed
+        </div>
+      )}
     </div>
   );
 }
