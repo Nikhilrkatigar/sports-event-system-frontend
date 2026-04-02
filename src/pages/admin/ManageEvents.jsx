@@ -10,7 +10,7 @@ const empty = {
   type: 'single',
   eventCategory: 'track',
   status: 'draft',
-  scoreOrder: 'desc',
+  scoreOrder: 'asc',
   teamSize: 2,
   lanesPerHeat: 8,
   fieldAttempts: 3,
@@ -104,7 +104,9 @@ export default function ManageEvents() {
     setForm({
       ...event,
       eventCategory: event.eventCategory || (event.type === 'single' ? 'track' : 'general'),
-      scoreOrder: event.scoreOrder || 'desc',
+      scoreOrder: event.eventCategory === 'track'
+        ? 'asc'
+        : (event.scoreOrder || 'desc'),
       status: event.status || 'draft',
       lanesPerHeat: event.lanesPerHeat || 8,
       fieldAttempts: event.fieldAttempts || 3,
@@ -230,7 +232,10 @@ export default function ManageEvents() {
                     teamSize: nextType === 'team' ? previous.teamSize || 2 : 1,
                     eventCategory: nextType === 'single'
                       ? (previous.eventCategory === 'general' ? 'track' : previous.eventCategory)
-                      : previous.eventCategory
+                      : previous.eventCategory,
+                    scoreOrder: nextType === 'single' && (previous.eventCategory === 'track' || previous.eventCategory === 'general')
+                      ? (previous.eventCategory === 'general' ? previous.scoreOrder : 'asc')
+                      : previous.scoreOrder
                   }));
                 }}
               >
@@ -240,7 +245,20 @@ export default function ManageEvents() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Scheduling Category</label>
-              <select className="input-field" value={form.eventCategory} onChange={e => setForm({ ...form, eventCategory: e.target.value })}>
+              <select
+                className="input-field"
+                value={form.eventCategory}
+                onChange={(e) => {
+                  const nextCategory = e.target.value;
+                  setForm((previous) => ({
+                    ...previous,
+                    eventCategory: nextCategory,
+                    scoreOrder: nextCategory === 'track'
+                      ? 'asc'
+                      : (previous.scoreOrder === 'asc' && previous.eventCategory === 'track' ? 'desc' : previous.scoreOrder)
+                  }));
+                }}
+              >
                 <option value="general">General / Head-to-Head</option>
                 <option value="track">Track / Heats</option>
                 <option value="field">Field / Ranked Flight</option>
