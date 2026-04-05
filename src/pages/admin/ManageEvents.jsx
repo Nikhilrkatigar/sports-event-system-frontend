@@ -10,7 +10,7 @@ const empty = {
   type: 'single',
   eventCategory: 'track',
   status: 'draft',
-  scoreOrder: 'asc',
+  scoreOrder: 'desc',
   teamSize: 2,
   lanesPerHeat: 8,
   fieldAttempts: 3,
@@ -104,9 +104,7 @@ export default function ManageEvents() {
     setForm({
       ...event,
       eventCategory: event.eventCategory || (event.type === 'single' ? 'track' : 'general'),
-      scoreOrder: event.eventCategory === 'track'
-        ? 'asc'
-        : (event.scoreOrder || 'desc'),
+      scoreOrder: 'desc',
       status: event.status || 'draft',
       lanesPerHeat: event.lanesPerHeat || 8,
       fieldAttempts: event.fieldAttempts || 3,
@@ -233,9 +231,7 @@ export default function ManageEvents() {
                     eventCategory: nextType === 'single'
                       ? (previous.eventCategory === 'general' ? 'track' : previous.eventCategory)
                       : previous.eventCategory,
-                    scoreOrder: nextType === 'single' && (previous.eventCategory === 'track' || previous.eventCategory === 'general')
-                      ? (previous.eventCategory === 'general' ? previous.scoreOrder : 'asc')
-                      : previous.scoreOrder
+                    scoreOrder: 'desc'
                   }));
                 }}
               >
@@ -253,9 +249,7 @@ export default function ManageEvents() {
                   setForm((previous) => ({
                     ...previous,
                     eventCategory: nextCategory,
-                    scoreOrder: nextCategory === 'track'
-                      ? 'asc'
-                      : (previous.scoreOrder === 'asc' && previous.eventCategory === 'track' ? 'desc' : previous.scoreOrder)
+                    scoreOrder: 'desc'
                   }));
                 }}
               >
@@ -271,13 +265,6 @@ export default function ManageEvents() {
               <label className="block text-xs font-medium text-gray-600 mb-1">Lifecycle Status</label>
               <select className="input-field" value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
                 {EVENT_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Scoring</label>
-              <select className="input-field" value={form.scoreOrder} onChange={e => setForm({ ...form, scoreOrder: e.target.value })}>
-                <option value="desc">Higher Score Wins</option>
-                <option value="asc">Lower Score Wins</option>
               </select>
             </div>
             {form.type === 'team' && (

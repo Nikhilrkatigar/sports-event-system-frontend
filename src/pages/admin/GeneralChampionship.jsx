@@ -106,6 +106,9 @@ export default function GeneralChampionship() {
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             Auto-calculated department points from final event results using 15, 10 and 5 points.
           </p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            If the same department places multiple times in one event, only its highest position counts.
+          </p>
         </div>
 
         <button

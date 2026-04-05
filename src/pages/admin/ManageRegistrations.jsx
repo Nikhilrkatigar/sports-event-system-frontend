@@ -4,7 +4,7 @@ import API from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { TableRowSkeleton } from '../../components/Skeletons';
 import { useAuth } from '../../context/AuthContext';
-import { hasPermission } from '../../utils/roles';
+import { hasFullCmsAccess, hasPermission } from '../../utils/roles';
 import EditPlayerModal from '../../components/EditPlayerModal';
 
 const getFilenameFromContentDisposition = (headerValue, fallbackName) => {
@@ -123,6 +123,7 @@ export default function ManageRegistrations() {
   const [editingTeamName, setEditingTeamName] = useState('');
   const [downloadEvent, setDownloadEvent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const [verifyingPayment, setVerifyingPayment] = useState(null);
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [editingRegistrationId, setEditingRegistrationId] = useState(null);
@@ -131,6 +132,7 @@ export default function ManageRegistrations() {
 
   const canEditRegistration = hasPermission(admin?.role, 'manage_registrations');
   const canCheckIn = hasPermission(admin?.role, 'check_in');
+  const canDeleteAllRegistrations = hasFullCmsAccess(admin?.role);
 
   const load = async () => {
     setLoading(true);
@@ -188,6 +190,35 @@ export default function ManageRegistrations() {
     } catch (err) {
       setRegistrations(previousRegistrations);
       toast.error(err.response?.data?.message || 'Failed to delete registration');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!canDeleteAllRegistrations) return;
+
+    const selectedEvent = events.find((event) => event._id === filter);
+    const targetLabel = selectedEvent ? `all registrations for ${selectedEvent.title}` : 'all registrations';
+    const confirmed = await confirm({
+      title: 'Delete All Registrations',
+      message: `Are you sure you want to delete ${targetLabel}? This action cannot be undone.`,
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      isDangerous: true
+    });
+    if (!confirmed) return;
+
+    setDeletingAll(true);
+    try {
+      await API.delete('/registrations/admin/all', {
+        params: filter ? { eventId: filter } : {}
+      });
+      toast.success(selectedEvent ? 'Event registrations deleted successfully' : 'All registrations deleted successfully');
+      setExpanded(null);
+      await load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete registrations');
+    } finally {
+      setDeletingAll(false);
     }
   };
 
@@ -484,6 +515,15 @@ export default function ManageRegistrations() {
         <div className="flex gap-2">
           <button onClick={() => exportAll('csv')} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Export CSV</button>
           <button onClick={() => exportAll('excel')} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">Export Excel</button>
+          {canDeleteAllRegistrations && (
+            <button
+              onClick={handleDeleteAll}
+              disabled={deletingAll}
+              className="px-3 py-2 text-sm border border-red-200 text-red-700 rounded-lg hover:bg-red-50 disabled:opacity-50"
+            >
+              {deletingAll ? 'Deleting...' : 'Delete All'}
+            </button>
+          )}
         </div>
       </div>
 

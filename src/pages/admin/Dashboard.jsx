@@ -16,7 +16,9 @@ import {
   ScanLine,
   Award,
   Swords,
-  ChevronRight
+  ChevronRight,
+  Download,
+  Loader2
 } from 'lucide-react';
 
 const StatCard = ({ icon: Icon, label, value, gradient, loading }) => (
@@ -65,6 +67,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState({});
   const [recentRegs, setRecentRegs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -77,6 +80,30 @@ export default function Dashboard() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const handleExportPDF = async () => {
+    try {
+      setExporting(true);
+      const response = await API.get('/registrations/export/dashboard-pdf', {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Dashboard_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export PDF. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const quickActions = useMemo(() => ([
     { to: '/admin/events', label: 'Create New Event', short: 'Add Event', icon: PlusCircle, permission: 'manage_events', gradient: 'from-blue-500 to-indigo-600' },
@@ -97,9 +124,30 @@ export default function Dashboard() {
             Welcome back, {admin?.name || 'Admin'}
           </p>
         </div>
-        <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-full shadow-sm backdrop-blur-md">
-          <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
-          <span className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Live System Status</span>
+        <div className="flex items-center gap-3">
+          {hasPermission(admin?.role, 'view_dashboard') && (
+            <button
+              onClick={handleExportPDF}
+              disabled={exporting || loading}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="hidden sm:inline">Exporting...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span className="hidden sm:inline">Export PDF</span>
+                </>
+              )}
+            </button>
+          )}
+          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700/50 rounded-full shadow-sm backdrop-blur-md">
+            <Activity className="w-4 h-4 text-emerald-500 animate-pulse" />
+            <span className="text-xs font-semibold text-gray-700 dark:text-slate-300 uppercase tracking-wider">Live System Status</span>
+          </div>
         </div>
       </div>
 

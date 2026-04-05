@@ -25,6 +25,7 @@ const getBestFieldScore = (attempts = [], scoreOrder = 'desc') => {
 };
 
 const GENDER_LABELS = { all: 'All', male: 'Male (Boys)', female: 'Female (Girls)' };
+const PRINT_GENDER_LABELS = { all: 'All', male: 'Male', female: 'Female' };
 const MANUAL_BYE_VALUE = '__BYE__';
 
 function SummaryCard({ label, value }) {
@@ -311,6 +312,7 @@ export default function ManageTournaments() {
         if (!groupedByRound[match.round]) groupedByRound[match.round] = [];
         groupedByRound[match.round].push(match);
       });
+      const printGenderLabel = PRINT_GENDER_LABELS[tournament.genderFilter || 'all'] || 'All';
 
       let htmlContent = `<!doctype html>
 <html>
@@ -323,6 +325,13 @@ export default function ManageTournaments() {
     h2 { font-size: 14px; font-weight: bold; margin: 20px 0 12px 0; page-break-after: avoid; }
     
     .header { border-bottom: 2px solid #333; padding-bottom: 8px; margin-bottom: 15px; }
+    .gender-label {
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #111;
+    }
     .format-label { font-size: 11px; color: #666; }
     
     .match-container { 
@@ -432,6 +441,7 @@ export default function ManageTournaments() {
 </head>
 <body>
   <div class="header">
+    <p class="gender-label">${printGenderLabel}</p>
     <h1>${selectedEvent.title}</h1>
     <p class="format-label">${formatLabel(tournament.format)}</p>
   </div>`;

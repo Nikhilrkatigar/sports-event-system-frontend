@@ -8,6 +8,14 @@ import { canRegisterForEvent, getEventStatusMeta, PUBLIC_EVENT_STATUSES } from '
 import { Calendar, Users, Ticket, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
+const isRankedPodiumEntry = (entry) => (
+  entry
+  && entry.rank != null
+  && Number(entry.rank) <= 3
+  && entry.score !== null
+  && entry.score !== undefined
+  && Number(entry.score) !== 0
+);
 
 export default function HomePage() {
   const { t } = useTranslation();
@@ -44,7 +52,18 @@ export default function HomePage() {
             .slice(0, 6)
         );
         setGallery(toArray(galleryRes?.data).slice(0, 6));
-        setLeaderboard(toArray(leaderboardRes?.data).slice(0, 5));
+        setLeaderboard(
+          toArray(leaderboardRes?.data)
+            .filter(isRankedPodiumEntry)
+            .sort((a, b) => {
+              const aEvent = String(a.eventId?.title || '');
+              const bEvent = String(b.eventId?.title || '');
+              if (aEvent !== bEvent) return aEvent.localeCompare(bEvent);
+              if (a.rank !== b.rank) return a.rank - b.rank;
+              return Number(b.score || 0) - Number(a.score || 0);
+            })
+            .slice(0, 5)
+        );
         setAnnouncements(toArray(messagesRes?.data).slice(0, 10));
       })
       .finally(() => setLoading(false));

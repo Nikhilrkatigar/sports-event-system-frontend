@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
 import { CardSkeleton } from '../../components/Skeletons';
 import { formatLabel } from '../../utils/tournaments';
 import { Trophy, CalendarDays, Users, Activity, CheckCircle2, Clock, ChevronRight } from 'lucide-react';
+
+const GENDER_LABELS = { all: 'All', male: 'Boys', female: 'Girls' };
+const GENDER_ORDER = ['all', 'male', 'female'];
 
 export default function TournamentsPage() {
   const [tournaments, setTournaments] = useState([]);
@@ -15,6 +18,55 @@ export default function TournamentsPage() {
       .then((res) => setTournaments(res.data || []))
       .finally(() => setLoading(false));
   }, []);
+
+  const groupedTournaments = useMemo(() => {
+    const groups = new Map();
+
+    tournaments.forEach((tournament, index) => {
+      const eventKey = tournament.eventId?._id || tournament._id;
+      const existing = groups.get(eventKey);
+
+      if (existing) {
+        existing.entries.push(tournament);
+        return;
+      }
+
+      groups.set(eventKey, {
+        key: eventKey,
+        event: tournament.eventId,
+        entries: [tournament],
+        order: index
+      });
+    });
+
+    return Array.from(groups.values())
+      .map((group) => {
+        const entries = group.entries;
+        const genderFilters = Array.from(new Set(entries.map((entry) => entry.genderFilter || 'all')))
+          .sort((a, b) => GENDER_ORDER.indexOf(a) - GENDER_ORDER.indexOf(b));
+        const primaryEntry = entries.find((entry) => (entry.genderFilter || 'all') === 'all') || entries[0];
+        const hasAllTournament = genderFilters.includes('all');
+        const participantCount = hasAllTournament
+          ? (primaryEntry?.participantCount || 0)
+          : entries.reduce((sum, entry) => sum + (entry.participantCount || 0), 0);
+        const status = entries.some((entry) => entry.status === 'in_progress')
+          ? 'in_progress'
+          : entries.every((entry) => entry.status === 'completed')
+            ? 'completed'
+            : 'scheduled';
+
+        return {
+          key: group.key,
+          event: group.event,
+          tournament: primaryEntry,
+          genderFilters,
+          participantCount,
+          status,
+          order: group.order
+        };
+      })
+      .sort((a, b) => a.order - b.order);
+  }, [tournaments]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300 pb-20">
@@ -54,7 +106,7 @@ export default function TournamentsPage() {
             <CardSkeleton />
             <CardSkeleton />
           </div>
-        ) : tournaments.length === 0 ? (
+        ) : groupedTournaments.length === 0 ? (
           <div className="bg-white dark:bg-dark-card rounded-3xl border border-gray-100 dark:border-dark-border p-16 text-center shadow-lg animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
             <div className="bg-gray-50 dark:bg-gray-800/50 w-20 h-20 mx-auto rounded-full flex items-center justify-center mb-6">
               <Trophy className="w-10 h-10 text-gray-400 dark:text-gray-500" />
@@ -64,9 +116,10 @@ export default function TournamentsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {tournaments.map((tournament, i) => {
-              const isLive = tournament.status === 'in_progress';
-              const isCompleted = tournament.status === 'completed';
+            {groupedTournaments.map((group, i) => {
+              const { event, tournament, genderFilters, participantCount, status } = group;
+              const isLive = status === 'in_progress';
+              const isCompleted = status === 'completed';
               
               const statusColors = {
                 in_progress: 'from-amber-400 to-orange-500',
@@ -76,12 +129,12 @@ export default function TournamentsPage() {
 
               return (
                 <div 
-                  key={tournament._id} 
+                  key={group.key} 
                   className="group relative bg-white dark:bg-dark-card rounded-2xl shadow-sm hover:shadow-2xl transition-all duration-500 hover:-translate-y-1.5 border border-gray-100 dark:border-dark-border overflow-hidden flex flex-col h-full animate-fade-in-up"
                   style={{ animationDelay: `${(i * 0.1) + 0.2}s` }}
                 >
                   {/* Top Accent Line */}
-                  <div className={`h-1.5 w-full bg-gradient-to-r ${statusColors[tournament.status] || statusColors.scheduled}`}></div>
+                  <div className={`h-1.5 w-full bg-gradient-to-r ${statusColors[status] || statusColors.scheduled}`}></div>
                   
                   {isLive && (
                     <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl -mr-10 -mt-10" />
@@ -107,27 +160,43 @@ export default function TournamentsPage() {
                     </div>
 
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-snug group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {tournament.eventId?.title || 'Tournament'}
+                      {event?.title || 'Tournament'}
                     </h2>
                     
                     <div className="mt-4 space-y-3.5 mb-8">
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                         <CalendarDays className="w-4.5 h-4.5 mr-3 text-gray-400 dark:text-gray-500" />
-                        <span className="font-medium">{tournament.eventId?.date ? new Date(tournament.eventId.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'Date TBA'}</span>
+                        <span className="font-medium">{event?.date ? new Date(event.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'Date TBA'}</span>
                       </div>
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                         <Users className="w-4.5 h-4.5 mr-3 text-gray-400 dark:text-gray-500" />
-                        <span className="font-medium">{tournament.participantCount || 0} Participants</span>
+                        <span className="font-medium">{participantCount} Participants</span>
                       </div>
                       <div className="flex items-center text-sm text-gray-600 dark:text-gray-400">
                         <Trophy className="w-4.5 h-4.5 mr-3 text-gray-400 dark:text-gray-500" />
                         <span className="font-medium">{formatLabel(tournament.format)}</span>
                       </div>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {genderFilters.map((gender) => (
+                          <span
+                            key={gender}
+                            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                              gender === 'male'
+                                ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                : gender === 'female'
+                                  ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}
+                          >
+                            {GENDER_LABELS[gender] || gender}
+                          </span>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="mt-auto pt-5 border-t border-gray-100 dark:border-gray-800/80">
                       <Link
-                        to={`/tournaments/${tournament.eventId?._id}`}
+                        to={`/tournaments/${event?._id}`}
                         className="group/btn relative flex items-center justify-center w-full py-3 px-4 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden"
                       >
                         <span className="relative z-10 flex items-center">
