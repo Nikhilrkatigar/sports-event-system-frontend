@@ -443,6 +443,7 @@ function BracketLine({ fromRound, toRound, fromIndex, toIndex }) {
  * MATCH DETAIL MODAL - Detailed match information
  */
 function MatchDetailModal({ match, onClose }) {
+  const [expandedSection, setExpandedSection] = useState(null);
   const isCompleted = match.status === 'completed';
   const hasWinner = match.winner !== null && match.winner !== undefined;
 
@@ -452,14 +453,14 @@ function MatchDetailModal({ match, onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gradient-to-br dark:from-slate-950 dark:to-slate-900 rounded-2xl border dark:border-cyan-400/20 shadow-2xl max-w-md w-full transform transition-all"
+        className="bg-white dark:bg-gradient-to-br dark:from-slate-950 dark:to-slate-900 rounded-2xl border dark:border-cyan-400/20 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto transform transition-all"
         onClick={(e) => e.stopPropagation()}
         style={{
           animation: 'scaleIn 0.3s ease-out'
         }}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-cyan-400/20 flex justify-between items-center">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-cyan-400/20 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-950/95 backdrop-blur">
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white">
               Match #{match.matchNumber}
@@ -500,9 +501,54 @@ function MatchDetailModal({ match, onClose }) {
                 {match.participant1Uucms}
               </div>
             )}
+            {match.participant1RegistrationNumber && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Reg #: {match.participant1RegistrationNumber}
+              </div>
+            )}
             {match.score1 != null && (
               <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-3">
                 Score: {match.score1}
+              </div>
+            )}
+
+            {/* Team Details for Participant 1 */}
+            {match.participant1TeamDetails && match.participant1TeamDetails.players && match.participant1TeamDetails.players.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <button
+                  onClick={() => setExpandedSection(expandedSection === 'p1' ? null : 'p1')}
+                  className="flex items-center gap-2 text-sm font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
+                >
+                  <span className={`transform transition-transform ${expandedSection === 'p1' ? 'rotate-90' : ''}`}>
+                    ▶
+                  </span>
+                  View Team Members ({match.participant1TeamDetails.players.length})
+                </button>
+
+                {expandedSection === 'p1' && (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100 dark:bg-gray-700/50">
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">Reg #</th>
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">UUCMS</th>
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">Name</th>
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">Department</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {match.participant1TeamDetails.players.map((player, idx) => (
+                          <tr key={idx} className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200">{match.participant1RegistrationNumber || '-'}</td>
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200 font-mono">{player.uucms || '-'}</td>
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200">{player.name || '-'}</td>
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200">{player.department || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -541,9 +587,54 @@ function MatchDetailModal({ match, onClose }) {
                 {match.participant2Uucms}
               </div>
             )}
+            {match.participant2RegistrationNumber && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Reg #: {match.participant2RegistrationNumber}
+              </div>
+            )}
             {match.score2 != null && (
               <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-3">
                 Score: {match.score2}
+              </div>
+            )}
+
+            {/* Team Details for Participant 2 */}
+            {match.participant2TeamDetails && match.participant2TeamDetails.players && match.participant2TeamDetails.players.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <button
+                  onClick={() => setExpandedSection(expandedSection === 'p2' ? null : 'p2')}
+                  className="flex items-center gap-2 text-sm font-semibold text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
+                >
+                  <span className={`transform transition-transform ${expandedSection === 'p2' ? 'rotate-90' : ''}`}>
+                    ▶
+                  </span>
+                  View Team Members ({match.participant2TeamDetails.players.length})
+                </button>
+
+                {expandedSection === 'p2' && (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100 dark:bg-gray-700/50">
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">Reg #</th>
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">UUCMS</th>
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">Name</th>
+                          <th className="px-2 py-2 text-left font-semibold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600">Department</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {match.participant2TeamDetails.players.map((player, idx) => (
+                          <tr key={idx} className="border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200">{match.participant2RegistrationNumber || '-'}</td>
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200 font-mono">{player.uucms || '-'}</td>
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200">{player.name || '-'}</td>
+                            <td className="px-2 py-2 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-200">{player.department || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

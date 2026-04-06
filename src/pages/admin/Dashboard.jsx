@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import API from '../../utils/api';
 import { useAuth } from '../../context/AuthContext';
 import { hasPermission } from '../../utils/roles';
@@ -88,7 +89,8 @@ export default function Dashboard() {
         responseType: 'blob'
       });
       
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      // response.data is already a Blob, don't wrap it
+      const blob = response.data instanceof Blob ? response.data : new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -97,9 +99,11 @@ export default function Dashboard() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      toast.success('PDF exported successfully');
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Failed to export PDF. Please try again.');
+      const errorMessage = error?.response?.data?.message || error?.message || 'Failed to export PDF. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setExporting(false);
     }
