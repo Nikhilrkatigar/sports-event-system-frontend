@@ -9,11 +9,13 @@ const empty = {
   title: '',
   type: 'single',
   eventCategory: 'track',
+  sportType: 'standard',
   status: 'draft',
   scoreOrder: 'desc',
   teamSize: 2,
   lanesPerHeat: 8,
   fieldAttempts: 3,
+  cricketOvers: 20,
   maleRequired: 0,
   femaleRequired: 0,
   allowedGenders: ['male', 'female'],
@@ -104,10 +106,12 @@ export default function ManageEvents() {
     setForm({
       ...event,
       eventCategory: event.eventCategory || (event.type === 'single' ? 'track' : 'general'),
+      sportType: event.sportType || 'standard',
       scoreOrder: 'desc',
       status: event.status || 'draft',
       lanesPerHeat: event.lanesPerHeat || 8,
       fieldAttempts: event.fieldAttempts || 3,
+      cricketOvers: event.cricketOvers || 20,
       allowedGenders: event.allowedGenders || ['male', 'female'],
       allowedDepartments: event.allowedDepartments || [],
       registrationFee: event.registrationFee || 0,
@@ -218,10 +222,31 @@ export default function ManageEvents() {
               <input className="input-field" placeholder="e.g. 100m Race" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Sport Type</label>
+              <select
+                className="input-field"
+                value={form.sportType}
+                onChange={(e) => {
+                  const nextSportType = e.target.value;
+                  setForm((previous) => ({
+                    ...previous,
+                    sportType: nextSportType,
+                    type: nextSportType === 'cricket' ? 'team' : previous.type,
+                    teamSize: nextSportType === 'cricket' ? Math.max(2, Number(previous.teamSize || 11)) : previous.teamSize,
+                    eventCategory: nextSportType === 'cricket' ? 'general' : previous.eventCategory
+                  }));
+                }}
+              >
+                <option value="standard">Standard</option>
+                <option value="cricket">Cricket</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Event Type</label>
               <select
                 className="input-field"
                 value={form.type}
+                disabled={form.sportType === 'cricket'}
                 onChange={(e) => {
                   const nextType = e.target.value;
                   setForm((previous) => ({
@@ -244,6 +269,7 @@ export default function ManageEvents() {
               <select
                 className="input-field"
                 value={form.eventCategory}
+                disabled={form.sportType === 'cricket'}
                 onChange={(e) => {
                   const nextCategory = e.target.value;
                   setForm((previous) => ({
@@ -258,7 +284,9 @@ export default function ManageEvents() {
                 <option value="field">Field / Ranked Flight</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                Use track for races and relay, field for shot put/discus/long jump, and general for knockout or round-robin events.
+                {form.sportType === 'cricket'
+                  ? 'Cricket events use the general tournament flow and support bracket-based match generation with cricket score entry.'
+                  : 'Use track for races and relay, field for shot put/discus/long jump, and general for knockout or round-robin events.'}
               </p>
             </div>
             <div>
@@ -271,6 +299,13 @@ export default function ManageEvents() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Team Size</label>
                 <input type="number" className="input-field" value={form.teamSize} onChange={e => setForm({ ...form, teamSize: e.target.value })} />
+              </div>
+            )}
+            {form.sportType === 'cricket' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Overs Per Innings</label>
+                <input type="number" min="1" max="100" className="input-field" value={form.cricketOvers} onChange={e => setForm({ ...form, cricketOvers: e.target.value })} />
+                <p className="text-xs text-gray-500 mt-1">This becomes the default overs setting for each generated cricket match.</p>
               </div>
             )}
             {form.eventCategory === 'track' && (
@@ -476,6 +511,11 @@ export default function ManageEvents() {
                     <span className={`text-xs px-2 py-0.5 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
                       {event.type === 'team' ? `Team • ${event.teamSize}` : 'Individual'}
                     </span>
+                    {event.sportType === 'cricket' && (
+                      <div className="text-xs text-emerald-700 mt-1 font-semibold">
+                        Cricket • {event.cricketOvers || 20} overs
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500 mt-1">
                       Scheduling: {categoryLabel(event.eventCategory || (event.type === 'single' ? 'track' : 'general'))}
                     </div>

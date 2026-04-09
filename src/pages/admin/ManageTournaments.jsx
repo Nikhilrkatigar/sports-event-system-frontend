@@ -4,7 +4,7 @@ import { Printer } from 'lucide-react';
 import API from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import RoundRobinTable from '../../components/public/RoundRobinTable';
-import { formatLabel, getAvailableFormats, getGenerateActionLabel, getParticipantUnitLabel } from '../../utils/tournaments';
+import { formatCricketScore, formatLabel, getAvailableFormats, getGenerateActionLabel, getParticipantUnitLabel, isCricketEvent } from '../../utils/tournaments';
 
 const buildScoreState = (matches = []) => Object.fromEntries(matches.flatMap((m) => [
   ...(m.score1 != null ? [[`${m._id}_1`, m.score1]] : []),
@@ -12,6 +12,13 @@ const buildScoreState = (matches = []) => Object.fromEntries(matches.flatMap((m)
 ]));
 const buildScheduleState = (matches = []) => Object.fromEntries(matches.map((m) => [m._id, m.scheduledTime ? m.scheduledTime.substring(0, 16) : '']));
 const buildLaneState = (matches = []) => Object.fromEntries(matches.map((m) => [m._id, Object.fromEntries((m.lanes || []).map((lane) => [lane.lane, { finishPosition: lane.finishPosition ?? '', finishTime: lane.finishTime || '', isQualified: Boolean(lane.isQualified) }]))]));
+const normalizeCricketInput = (score = {}) => ({ runs: score?.runs ?? '', wickets: score?.wickets ?? '', overs: score?.overs || '' });
+const buildCricketState = (matches = []) => Object.fromEntries(matches.map((match) => [match._id, {
+  score1: normalizeCricketInput(match.cricketScore1),
+  score2: normalizeCricketInput(match.cricketScore2),
+  winnerSlot: match.winner === match.participant1 ? '1' : match.winner === match.participant2 ? '2' : '',
+  resultText: match.cricketResultText || ''
+}]));
 const fieldKey = (entry) => String(entry.applicationId || `order-${entry.order}`);
 const buildFieldState = (matches = []) => Object.fromEntries(matches.map((m) => [m._id, Object.fromEntries((m.fieldEntries || []).map((entry) => [fieldKey(entry), {
   attempts: Array.isArray(entry.attempts) && entry.attempts.length > 0 ? entry.attempts.map((attempt) => attempt ?? '') : ['', '', ''],
@@ -38,7 +45,7 @@ function StatusBadge({ status }) {
 }
 
 // Participant selector component with dropdown for TBD
-function ParticipantSelector({ match, participantSlot, participant, uucms, winner, availableParticipants, onUpdate, isUpdating, allowBye = false }) {
+function ParticipantSelector({ match, participantSlot, participant, uucms, winner, availableParticipants, onUpdate, isUpdating, allowBye = false, scoreLabel = null }) {
   const isTBD = !participant || participant === 'TBD';
   const isBye = participant === 'BYE';
   const isWinner = winner === participant;
@@ -58,7 +65,7 @@ function ParticipantSelector({ match, participantSlot, participant, uucms, winne
           <span className="block">{participant}</span>
           {uucms && <span className="block text-[11px] font-normal text-gray-500">{uucms}</span>}
         </span>
-        {match.status === 'completed' ? <span className="font-bold text-sm">{participantSlot === 1 ? match.score1 : match.score2}</span> : null}
+        {scoreLabel ? <span className="font-bold text-sm text-right">{scoreLabel}</span> : null}
       </div>
     );
   }
@@ -89,6 +96,128 @@ function ParticipantSelector({ match, participantSlot, participant, uucms, winne
   );
 }
 
+function CricketTeamScoreEditor({ title, participant, score, onChange }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+      <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">{title}</div>
+      <div className="text-sm font-semibold text-gray-900 mb-3">{participant || 'TBD'}</div>
+      <div className="grid grid-cols-3 gap-2">
+        <input type="number" min="0" className="input-field text-sm" placeholder="Runs" value={score?.runs ?? ''} onChange={(e) => onChange('runs', e.target.value)} />
+        <input type="number" min="0" max="10" className="input-field text-sm" placeholder="Wkts" value={score?.wickets ?? ''} onChange={(e) => onChange('wickets', e.target.value)} />
+        <input type="text" className="input-field text-sm" placeholder="Overs" value={score?.overs ?? ''} onChange={(e) => onChange('overs', e.target.value)} />
+      </div>
+      {(score?.runs !== '' && score?.runs != null) && (
+        <div className="text-xs text-gray-500 mt-2">Preview: {formatCricketScore(score)}</div>
+      )}
+    </div>
+  );
+}
+
+function CricketMatchCard({
+  match,
+  availableParticipants,
+  onUpdateParticipant,
+  updatingParticipant,
+  onCricketInputChange,
+  cricketValue,
+  onSaveCricket,
+  savingMatch,
+  scheduleValue,
+  onScheduleChange,
+  onSaveSchedule,
+  savingSchedule,
+  tournamentFormat
+}) {
+  return (
+    <div className={`bg-white rounded-xl border p-4 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : match.status === 'in_progress' ? 'border-blue-200 bg-blue-50/20' : 'border-gray-200'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span>
+        <StatusBadge status={match.status} />
+      </div>
+
+      <ParticipantSelector
+        match={match}
+        participantSlot={1}
+        participant={match.participant1}
+        uucms={match.participant1Uucms}
+        winner={match.winner}
+        availableParticipants={availableParticipants}
+        onUpdate={onUpdateParticipant}
+        isUpdating={updatingParticipant === `${match._id}-1`}
+        allowBye={tournamentFormat === 'single_elimination'}
+        scoreLabel={match.cricketScore1?.runs != null ? formatCricketScore(match.cricketScore1) : null}
+      />
+      <div className="text-center text-xs text-gray-400 font-bold my-0.5">VS</div>
+      <ParticipantSelector
+        match={match}
+        participantSlot={2}
+        participant={match.participant2}
+        uucms={match.participant2Uucms}
+        winner={match.winner}
+        availableParticipants={availableParticipants}
+        onUpdate={onUpdateParticipant}
+        isUpdating={updatingParticipant === `${match._id}-2`}
+        allowBye={tournamentFormat === 'single_elimination'}
+        scoreLabel={match.cricketScore2?.runs != null ? formatCricketScore(match.cricketScore2) : null}
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <CricketTeamScoreEditor
+          title="Team A Score"
+          participant={match.participant1}
+          score={cricketValue?.score1}
+          onChange={(field, value) => onCricketInputChange(match._id, 'score1', field, value)}
+        />
+        <CricketTeamScoreEditor
+          title="Team B Score"
+          participant={match.participant2}
+          score={cricketValue?.score2}
+          onChange={(field, value) => onCricketInputChange(match._id, 'score2', field, value)}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Winner</label>
+          <select className="input-field text-sm" value={cricketValue?.winnerSlot || ''} onChange={(e) => onCricketInputChange(match._id, 'winnerSlot', null, e.target.value)}>
+            <option value="">Auto / none</option>
+            {match.participant1 && match.participant1 !== 'BYE' && <option value="1">{match.participant1}</option>}
+            {match.participant2 && match.participant2 !== 'BYE' && <option value="2">{match.participant2}</option>}
+          </select>
+          <p className="text-[11px] text-gray-500 mt-1">Use this only if the match is tied or you need to override the winner.</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">Result Note</label>
+          <input className="input-field text-sm" placeholder="Optional result text" value={cricketValue?.resultText || ''} onChange={(e) => onCricketInputChange(match._id, 'resultText', null, e.target.value)} />
+        </div>
+      </div>
+
+      <div className="space-y-2 mt-3">
+        <label className="block text-xs font-medium text-gray-500">Scheduled Time</label>
+        <div className="flex gap-2">
+          <input type="datetime-local" className="input-field text-sm" value={scheduleValue || ''} onChange={(e) => onScheduleChange(match._id, e.target.value)} />
+          <button onClick={() => onSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">
+            {savingSchedule === match._id ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      {match.cricketResultText && <div className="mt-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">{match.cricketResultText}</div>}
+
+      {match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && (
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          <button onClick={() => onSaveCricket(match._id, 'in_progress')} disabled={savingMatch === match._id} className="py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {savingMatch === match._id ? 'Saving...' : 'Save Live Score'}
+          </button>
+          <button onClick={() => onSaveCricket(match._id, 'completed')} disabled={savingMatch === match._id} className="py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">
+            {savingMatch === match._id ? 'Saving...' : 'Complete Match'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ManageTournaments() {
   const [events, setEvents] = useState([]), [selectedEventId, setSelectedEventId] = useState(''), [format, setFormat] = useState('single_elimination');
   const [genderFilter, setGenderFilter] = useState('all');
@@ -96,7 +225,7 @@ export default function ManageTournaments() {
   const [allTournaments, setAllTournaments] = useState([]); // [{tournament, matches}]
   const [activeGenderTab, setActiveGenderTab] = useState(null); // which gender tab is active
   const [loading, setLoading] = useState(false), [generating, setGenerating] = useState(false);
-  const [scores, setScores] = useState({}), [laneInputs, setLaneInputs] = useState({}), [fieldInputs, setFieldInputs] = useState({}), [scheduleInputs, setScheduleInputs] = useState({});
+  const [scores, setScores] = useState({}), [laneInputs, setLaneInputs] = useState({}), [fieldInputs, setFieldInputs] = useState({}), [scheduleInputs, setScheduleInputs] = useState({}), [cricketInputs, setCricketInputs] = useState({});
   const [savingMatch, setSavingMatch] = useState(null), [savingSchedule, setSavingSchedule] = useState(null);
   const [updatingParticipant, setUpdatingParticipant] = useState(null);
   const { confirm } = useConfirm();
@@ -114,6 +243,7 @@ export default function ManageTournaments() {
 
   const tournament = activeTournamentEntry?.tournament || null;
   const matches = activeTournamentEntry?.matches || [];
+  const isCricketTournament = isCricketEvent(selectedEvent || tournament?.eventId);
   const groupedByRound = useMemo(() => matches.reduce((acc, m) => ((acc[m.round] ||= []).push(m), acc), {}), [matches]);
   const bracketFormats = new Set(['single_elimination', 'round_robin']);
   const availableParticipants = useMemo(() => {
@@ -134,7 +264,7 @@ export default function ManageTournaments() {
     return Array.from(uniqueParticipants.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [tournament]);
 
-  const resetState = () => { setAllTournaments([]); setActiveGenderTab(null); setScores({}); setLaneInputs({}); setFieldInputs({}); setScheduleInputs({}); };
+  const resetState = () => { setAllTournaments([]); setActiveGenderTab(null); setScores({}); setLaneInputs({}); setFieldInputs({}); setScheduleInputs({}); setCricketInputs({}); };
   const syncState = (nextMatches, nextTournament = tournament) => {
     // Update within allTournaments
     setAllTournaments((prev) => {
@@ -150,6 +280,7 @@ export default function ManageTournaments() {
     setLaneInputs(buildLaneState(nextMatches));
     setFieldInputs(buildFieldState(nextMatches));
     setScheduleInputs(buildScheduleState(nextMatches));
+    setCricketInputs(buildCricketState(nextMatches));
   };
   const loadTournament = async (eventId) => {
     setLoading(true);
@@ -164,6 +295,7 @@ export default function ManageTournaments() {
         setLaneInputs(buildLaneState(firstEntry?.matches || []));
         setFieldInputs(buildFieldState(firstEntry?.matches || []));
         setScheduleInputs(buildScheduleState(firstEntry?.matches || []));
+        setCricketInputs(buildCricketState(firstEntry?.matches || []));
       } else {
         // Single tournament
         setAllTournaments([{ tournament: r.data.tournament, matches: r.data.matches }]);
@@ -172,6 +304,7 @@ export default function ManageTournaments() {
         setLaneInputs(buildLaneState(r.data.matches));
         setFieldInputs(buildFieldState(r.data.matches));
         setScheduleInputs(buildScheduleState(r.data.matches));
+        setCricketInputs(buildCricketState(r.data.matches));
       }
     } catch { resetState(); } finally { setLoading(false); }
   };
@@ -228,6 +361,61 @@ export default function ManageTournaments() {
     catch (err) { toast.error(err.response?.data?.message || 'Failed to save score'); }
     finally { setSavingMatch(null); }
   };
+  const handleCricketInputChange = (matchId, group, field, value) => {
+    setCricketInputs((previous) => {
+      const current = previous[matchId] || {
+        score1: normalizeCricketInput(),
+        score2: normalizeCricketInput(),
+        winnerSlot: '',
+        resultText: ''
+      };
+
+      if (group === 'winnerSlot' || group === 'resultText') {
+        return {
+          ...previous,
+          [matchId]: {
+            ...current,
+            [group]: value
+          }
+        };
+      }
+
+      return {
+        ...previous,
+        [matchId]: {
+          ...current,
+          [group]: {
+            ...(current[group] || normalizeCricketInput()),
+            [field]: value
+          }
+        }
+      };
+    });
+  };
+  const handleSaveCricket = async (matchId, status) => {
+    const payload = cricketInputs[matchId] || {
+      score1: normalizeCricketInput(),
+      score2: normalizeCricketInput(),
+      winnerSlot: '',
+      resultText: ''
+    };
+    setSavingMatch(matchId);
+    try {
+      const r = await API.put(`/tournaments/match/${matchId}`, {
+        status,
+        cricketScore1: payload.score1,
+        cricketScore2: payload.score2,
+        winnerSlot: payload.winnerSlot || undefined,
+        cricketResultText: payload.resultText || undefined
+      });
+      syncState(r.data.allMatches);
+      toast.success(status === 'completed' ? 'Cricket match completed' : 'Live cricket score saved');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to save cricket score');
+    } finally {
+      setSavingMatch(null);
+    }
+  };
   const handleSaveHeat = async (matchId) => {
     const match = matches.find((m) => m._id === matchId); if (!match) return;
     const lanes = (match.lanes || []).map((lane) => ({ lane: lane.lane, finishPosition: laneInputs[matchId]?.[lane.lane]?.finishPosition ?? '', finishTime: laneInputs[matchId]?.[lane.lane]?.finishTime ?? '', isQualified: Boolean(laneInputs[matchId]?.[lane.lane]?.isQualified) }));
@@ -264,6 +452,7 @@ export default function ManageTournaments() {
         setLaneInputs(buildLaneState(remaining[0].matches));
         setFieldInputs(buildFieldState(remaining[0].matches));
         setScheduleInputs(buildScheduleState(remaining[0].matches));
+        setCricketInputs(buildCricketState(remaining[0].matches));
       } else {
         resetState();
       }
@@ -286,6 +475,30 @@ export default function ManageTournaments() {
       toast.error(err.response?.data?.message || 'Failed to sync leaderboard');
     } finally {
       setSyncingLeaderboard(false);
+    }
+  };
+
+  const [generatingCricket, setGeneratingCricket] = useState(false);
+  const handleGenerateCricketMatches = async () => {
+    if (!tournament) return toast.error('No tournament selected');
+    
+    const ok = await confirm({
+      title: 'Generate Cricket Matches',
+      message: `This will create ${matches.length} cricket matches from your tournament fixtures. You can then start scoring from the Cricket page.`,
+      confirmText: 'Generate',
+      cancelText: 'Cancel'
+    });
+    if (!ok) return;
+
+    setGeneratingCricket(true);
+    try {
+      const res = await API.post('/cricket/from-tournament', { tournamentId: tournament._id });
+      toast.success(res.data.message || `${res.data.createdMatches.length} cricket match${res.data.createdMatches.length !== 1 ? 'es' : ''} created!`);
+      console.log('Created cricket matches:', res.data.createdMatches);
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.response?.data?.message || 'Failed to generate cricket matches');
+    } finally {
+      setGeneratingCricket(false);
     }
   };
 
@@ -739,6 +952,7 @@ export default function ManageTournaments() {
                   setLaneInputs(buildLaneState(entry.matches));
                   setFieldInputs(buildFieldState(entry.matches));
                   setScheduleInputs(buildScheduleState(entry.matches));
+                  setCricketInputs(buildCricketState(entry.matches));
                 }}
                 className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-all ${
                   isActive
@@ -760,16 +974,18 @@ export default function ManageTournaments() {
             Format: <strong className="text-gray-800">{formatLabel(tournament.format)}</strong>
             {tournament.genderFilter && tournament.genderFilter !== 'all' && <> | <span className={`font-semibold ${tournament.genderFilter === 'male' ? 'text-blue-600' : 'text-pink-600'}`}>{GENDER_LABELS[tournament.genderFilter]}</span></>}
              | {tournament.participantCount || 0} participants
+            {isCricketTournament && <> | <span className="font-semibold text-emerald-700">Cricket</span> | {tournament.eventId?.cricketOvers || selectedEvent?.cricketOvers || 20} overs</>}
           </div>
           <div className="flex gap-2 flex-wrap">
             <button onClick={handlePrintTournament} className="px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-2"><Printer size={16} />Print / PDF</button>
+            {isCricketTournament && <button onClick={handleGenerateCricketMatches} disabled={generatingCricket} className="px-4 py-2 text-sm bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50">🏏 {generatingCricket ? 'Generating...' : 'Generate Cricket Matches'}</button>}
             <button onClick={handleSyncLeaderboard} disabled={syncingLeaderboard} className="px-4 py-2 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100 border border-green-200 transition-colors disabled:opacity-50">{syncingLeaderboard ? 'Syncing...' : '📊 Sync to Leaderboard'}</button>
             <button onClick={handleDelete} className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition-colors">Delete{tournament.genderFilter && tournament.genderFilter !== 'all' ? ` ${GENDER_LABELS[tournament.genderFilter]}` : ''} Tournament</button>
           </div>
         </div>
       </div>}
 
-      {selectedEventId && !tournament && <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800"><strong>Format note:</strong> {format === 'track_heats' ? `Track heats support both individual races and relay teams, with up to ${laneCapacity} ${participantUnit} per heat.` : format === 'field_flight' ? `Field flight keeps all participants in one ranked list. ${selectedEvent?.scoreOrder === 'asc' ? 'Lower marks rank first.' : 'Higher marks rank first.'}` : 'Bracket generation uses the event filters and selected gender filter. You can generate separate brackets for males and females.'}</div>}
+      {selectedEventId && !tournament && <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800"><strong>Format note:</strong> {isCricketEvent(selectedEvent) ? `Cricket uses the normal tournament bracket. Registered teams will be matched automatically, and each generated match can be scored from this page.` : format === 'track_heats' ? `Track heats support both individual races and relay teams, with up to ${laneCapacity} ${participantUnit} per heat.` : format === 'field_flight' ? `Field flight keeps all participants in one ranked list. ${selectedEvent?.scoreOrder === 'asc' ? 'Lower marks rank first.' : 'Higher marks rank first.'}` : 'Bracket generation uses the event filters and selected gender filter. You can generate separate brackets for males and females.'}</div>}
       {loading && <div className="text-center py-12 text-gray-400"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>Loading tournament...</div>}
       {!loading && selectedEventId && !tournament && <div className="text-center py-16 text-gray-400"><p className="text-lg">No tournament exists for this event yet.</p><p className="text-sm mt-1">Select a format and gender filter, then click "{generateActionLabel}" to create one.</p><p className="text-sm mt-1 text-blue-500">Tip: You can generate separate brackets for Males and Females without deleting either.</p></div>}
 
@@ -786,7 +1002,71 @@ export default function ManageTournaments() {
         {matches.map((match) => { const previewEntries = (match.fieldEntries || []).map((entry) => { const attemptCount = Array.isArray(entry.attempts) && entry.attempts.length > 0 ? entry.attempts.length : 3; const attempts = (fieldInputs[match._id]?.[fieldKey(entry)]?.attempts || entry.attempts || ['', '', '']).slice(0, attemptCount); return { ...entry, attempts, bestScore: getBestFieldScore(attempts, selectedEvent?.scoreOrder || 'desc') }; }).sort((a, b) => { if (a.bestScore == null && b.bestScore == null) return a.order - b.order; if (a.bestScore == null) return 1; if (b.bestScore == null) return -1; return (selectedEvent?.scoreOrder || 'desc') === 'asc' ? a.bestScore - b.bestScore || a.order - b.order : b.bestScore - a.bestScore || a.order - b.order; }).map((entry, index) => ({ ...entry, liveRank: entry.bestScore != null ? index + 1 : null })); return <div key={match._id} className={`bg-white rounded-2xl border p-5 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-4"><div><h2 className="text-lg font-semibold text-gray-900">{match.heatName || `Flight ${match.matchNumber}`}</h2><p className="text-xs text-gray-500">{previewEntries.length} participants assigned</p></div><StatusBadge status={match.status} /></div><div className="overflow-x-auto"><table className="min-w-full"><thead><tr className="text-left text-xs font-semibold uppercase tracking-wider text-gray-500"><th className="px-3 py-2">Order</th><th className="px-3 py-2">Participant</th><th className="px-3 py-2">Reg. Number</th><th className="px-3 py-2">UUCMS</th><th className="px-3 py-2">Department</th>{Array.from({ length: previewEntries[0]?.attempts?.length || selectedEvent?.fieldAttempts || 3 }, (_, index) => <th key={`${match._id}-header-attempt-${index}`} className="px-3 py-2 text-right">{`Attempt ${index + 1}`}</th>)}<th className="px-3 py-2 text-right">Best Score</th><th className="px-3 py-2 text-right">Rank</th></tr></thead><tbody>{previewEntries.map((entry) => <tr key={`${match._id}-${fieldKey(entry)}`} className="border-t border-gray-100"><td className="px-3 py-3 text-sm text-gray-600">{entry.order}</td><td className="px-3 py-3 text-sm font-medium text-gray-900">{entry.label}</td><td className="px-3 py-3 text-sm text-gray-500">{entry.registrationNumber || '-'}</td><td className="px-3 py-3 text-sm text-gray-500">{entry.uucms || '-'}</td><td className="px-3 py-3 text-sm text-gray-500">{entry.department || 'Unassigned'}</td>{entry.attempts.map((attempt, attemptIndex) => <td key={`${match._id}-${fieldKey(entry)}-attempt-${attemptIndex}`} className="px-3 py-3 text-right"><input type="number" step="0.01" min="0" className="w-24 text-right border rounded px-2 py-1 text-sm" value={attempt ?? ''} onChange={(e) => setFieldInputs((p) => { const current = p[match._id]?.[fieldKey(entry)]?.attempts || entry.attempts || Array.from({ length: entry.attempts?.length || selectedEvent?.fieldAttempts || 3 }, () => ''); const nextAttempts = current.slice(0, entry.attempts?.length || selectedEvent?.fieldAttempts || 3); nextAttempts[attemptIndex] = e.target.value; while (nextAttempts.length < (entry.attempts?.length || selectedEvent?.fieldAttempts || 3)) nextAttempts.push(''); return { ...p, [match._id]: { ...(p[match._id] || {}), [fieldKey(entry)]: { attempts: nextAttempts, bestScore: getBestFieldScore(nextAttempts, selectedEvent?.scoreOrder || 'desc') ?? '' } } }; })} /></td>)}<td className="px-3 py-3 text-right text-sm font-semibold text-gray-900">{entry.bestScore ?? '--'}</td><td className="px-3 py-3 text-right text-sm font-semibold text-gray-700">{entry.liveRank != null ? `#${entry.liveRank}` : '--'}</td></tr>)}</tbody></table></div><div className="space-y-2 mt-4"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div><button onClick={() => handleSaveField(match._id)} disabled={savingMatch === match._id} className="w-full mt-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Field Results'}</button>{previewEntries[0]?.bestScore != null && <div className="text-sm text-green-700 font-medium mt-3 text-center">Current leader: {previewEntries[0].label} ({previewEntries[0].bestScore})</div>}</div>; })}
       </div>}
 
-      {!loading && tournament && bracketFormats.has(tournament.format) && matches.length > 0 && <div className="space-y-6">{tournament.format === 'round_robin' && <RoundRobinTable matches={matches} participants={tournament.participants || []} />}{Object.entries(groupedByRound).sort(([a], [b]) => Number(a) - Number(b)).map(([round, roundMatches]) => { const totalRounds = Math.max(...Object.keys(groupedByRound).map(Number)); const roundLabel = tournament.format === 'round_robin' ? 'All Matches' : Number(round) === totalRounds ? 'Final' : Number(round) === totalRounds - 1 ? 'Semifinals' : Number(round) === totalRounds - 2 && totalRounds >= 3 ? 'Quarterfinals' : `Round ${round}`; return <div key={round}><h2 className="text-lg font-semibold text-gray-800 mb-3">{roundLabel}</h2><div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{roundMatches.map((match) => <div key={match._id} className={`bg-white rounded-xl border p-4 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}><div className="flex items-center justify-between mb-3"><span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span><StatusBadge status={match.status} /></div><ParticipantSelector match={match} participantSlot={1} participant={match.participant1} uucms={match.participant1Uucms} winner={match.winner} availableParticipants={availableParticipants} onUpdate={handleUpdateParticipant} isUpdating={updatingParticipant === `${match._id}-1`} allowBye={tournament.format === 'single_elimination'} />{match.status === 'completed' && match.participant1 && match.participant1 !== 'BYE' ? <div className="text-center py-2 px-3 text-sm font-bold text-gray-700">{match.score1}</div> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && match.status !== 'completed' ? <input type="number" min="0" className="w-full text-center border rounded px-1 py-1 text-sm mb-1" placeholder="Score" value={scores[`${match._id}_1`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_1`]: e.target.value }))} /> : null}<div className="text-center text-xs text-gray-400 font-bold my-0.5">VS</div><ParticipantSelector match={match} participantSlot={2} participant={match.participant2} uucms={match.participant2Uucms} winner={match.winner} availableParticipants={availableParticipants} onUpdate={handleUpdateParticipant} isUpdating={updatingParticipant === `${match._id}-2`} allowBye={tournament.format === 'single_elimination'} />{match.status === 'completed' && match.participant2 && match.participant2 !== 'BYE' ? <div className="text-center py-2 px-3 text-sm font-bold text-gray-700">{match.score2}</div> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && match.status !== 'completed' ? <input type="number" min="0" className="w-full text-center border rounded px-1 py-1 text-sm mb-3" placeholder="Score" value={scores[`${match._id}_2`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_2`]: e.target.value }))} /> : null}<div className="space-y-2 mb-3"><label className="block text-xs font-medium text-gray-500">Scheduled Time</label><div className="flex gap-2"><input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} /><button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button></div></div>{match.status !== 'completed' && match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && <button onClick={() => handleSaveScore(match._id)} disabled={savingMatch === match._id} className="w-full py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Score'}</button>}</div>)}</div></div>; })}</div>}
+      {!loading && tournament && bracketFormats.has(tournament.format) && matches.length > 0 && (
+        <div className="space-y-6">
+          {tournament.format === 'round_robin' && <RoundRobinTable matches={matches} participants={tournament.participants || []} />}
+          {Object.entries(groupedByRound).sort(([a], [b]) => Number(a) - Number(b)).map(([round, roundMatches]) => {
+            const totalRounds = Math.max(...Object.keys(groupedByRound).map(Number));
+            const roundLabel = tournament.format === 'round_robin'
+              ? 'All Matches'
+              : Number(round) === totalRounds
+                ? 'Final'
+                : Number(round) === totalRounds - 1
+                  ? 'Semifinals'
+                  : Number(round) === totalRounds - 2 && totalRounds >= 3
+                    ? 'Quarterfinals'
+                    : `Round ${round}`;
+
+            return (
+              <div key={round}>
+                <h2 className="text-lg font-semibold text-gray-800 mb-3">{roundLabel}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {roundMatches.map((match) => (
+                    isCricketTournament ? (
+                      <CricketMatchCard
+                        key={match._id}
+                        match={match}
+                        availableParticipants={availableParticipants}
+                        onUpdateParticipant={handleUpdateParticipant}
+                        updatingParticipant={updatingParticipant}
+                        onCricketInputChange={handleCricketInputChange}
+                        cricketValue={cricketInputs[match._id]}
+                        onSaveCricket={handleSaveCricket}
+                        savingMatch={savingMatch}
+                        scheduleValue={scheduleInputs[match._id] || ''}
+                        onScheduleChange={(matchId, value) => setScheduleInputs((p) => ({ ...p, [matchId]: value }))}
+                        onSaveSchedule={handleSaveSchedule}
+                        savingSchedule={savingSchedule}
+                        tournamentFormat={tournament.format}
+                      />
+                    ) : (
+                      <div key={match._id} className={`bg-white rounded-xl border p-4 ${match.status === 'completed' ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs text-gray-400 font-mono">Match #{match.matchNumber}</span>
+                          <StatusBadge status={match.status} />
+                        </div>
+                        <ParticipantSelector match={match} participantSlot={1} participant={match.participant1} uucms={match.participant1Uucms} winner={match.winner} availableParticipants={availableParticipants} onUpdate={handleUpdateParticipant} isUpdating={updatingParticipant === `${match._id}-1`} allowBye={tournament.format === 'single_elimination'} />
+                        {match.status === 'completed' && match.participant1 && match.participant1 !== 'BYE' ? <div className="text-center py-2 px-3 text-sm font-bold text-gray-700">{match.score1}</div> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && match.status !== 'completed' ? <input type="number" min="0" className="w-full text-center border rounded px-1 py-1 text-sm mb-1" placeholder="Score" value={scores[`${match._id}_1`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_1`]: e.target.value }))} /> : null}
+                        <div className="text-center text-xs text-gray-400 font-bold my-0.5">VS</div>
+                        <ParticipantSelector match={match} participantSlot={2} participant={match.participant2} uucms={match.participant2Uucms} winner={match.winner} availableParticipants={availableParticipants} onUpdate={handleUpdateParticipant} isUpdating={updatingParticipant === `${match._id}-2`} allowBye={tournament.format === 'single_elimination'} />
+                        {match.status === 'completed' && match.participant2 && match.participant2 !== 'BYE' ? <div className="text-center py-2 px-3 text-sm font-bold text-gray-700">{match.score2}</div> : match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && match.status !== 'completed' ? <input type="number" min="0" className="w-full text-center border rounded px-1 py-1 text-sm mb-3" placeholder="Score" value={scores[`${match._id}_2`] ?? ''} onChange={(e) => setScores((p) => ({ ...p, [`${match._id}_2`]: e.target.value }))} /> : null}
+                        <div className="space-y-2 mb-3">
+                          <label className="block text-xs font-medium text-gray-500">Scheduled Time</label>
+                          <div className="flex gap-2">
+                            <input type="datetime-local" className="input-field text-sm" value={scheduleInputs[match._id] || ''} onChange={(e) => setScheduleInputs((p) => ({ ...p, [match._id]: e.target.value }))} />
+                            <button onClick={() => handleSaveSchedule(match._id)} disabled={savingSchedule === match._id} className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50">{savingSchedule === match._id ? 'Saving...' : 'Save'}</button>
+                          </div>
+                        </div>
+                        {match.status !== 'completed' && match.participant1 && match.participant2 && match.participant1 !== 'BYE' && match.participant2 !== 'BYE' && <button onClick={() => handleSaveScore(match._id)} disabled={savingMatch === match._id} className="w-full py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">{savingMatch === match._id ? 'Saving...' : 'Save Score'}</button>}
+                      </div>
+                    )
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

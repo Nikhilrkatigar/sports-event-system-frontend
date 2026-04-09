@@ -112,7 +112,7 @@ export default function Dashboard() {
   const quickActions = useMemo(() => ([
     { to: '/admin/events', label: 'Create New Event', short: 'Add Event', icon: PlusCircle, permission: 'manage_events', gradient: 'from-blue-500 to-indigo-600' },
     { to: '/admin/registrations', label: 'Monitor Entries', short: 'Registrations', icon: Users, permission: 'view_registrations', gradient: 'from-emerald-500 to-teal-600' },
-    { to: '/admin/scanner', label: 'Verify Tickets', short: 'QR Scanner', icon: ScanLine, permission: 'check_in', gradient: 'from-purple-500 to-fuchsia-600' },
+
     { to: '/admin/leaderboard', label: 'Manage Results', short: 'Update Scores', icon: Award, permission: 'manage_leaderboard', gradient: 'from-amber-500 to-orange-600' },
     { to: '/admin/tournaments', label: 'Draw Matches', short: 'Brackets', icon: Swords, permission: 'manage_tournaments', gradient: 'from-rose-500 to-red-600' }
   ].filter((action) => hasPermission(admin?.role, action.permission))), [admin?.role]);

@@ -113,7 +113,7 @@ export const ROLE_DEFINITIONS = [
   {
     key: 'organizer',
     label: 'Organizer',
-    description: 'Limited access - can only access Scanner, Leaderboard, and Registrations.',
+    description: 'Limited access - can only access Leaderboard and Registrations.',
     permissions: [
       'view_dashboard',
       'view_registrations',
@@ -193,13 +193,13 @@ export const hasFullCmsAccess = (role) => hasPermission(role, 'manage_users');
 
 export const getAdminHomeByRole = (role) => {
   const roleName = normalizeRole(role);
-  // Organizers start at scanner page
+  // Organizers start at dashboard
   if (roleName === 'organizer') {
-    return '/admin/scanner';
+    return '/admin';
   }
-  // Check-in staff without other permissions start at scanner
+  // Check-in staff without other permissions start at registrations
   if (hasPermission(role, 'check_in') && !hasPermission(role, 'manage_events')) {
-    return '/admin/scanner';
+    return '/admin/registrations';
   }
   return hasPermission(role, 'view_dashboard') ? '/admin' : '/admin/login';
 };

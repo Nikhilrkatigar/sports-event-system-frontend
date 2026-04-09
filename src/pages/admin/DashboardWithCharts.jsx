@@ -89,7 +89,7 @@ export default function DashboardWithCharts() {
   const quickActions = useMemo(() => [
     { to: '/admin/events', label: 'New Event', icon: Plus, permission: 'manage_events' },
     { to: '/admin/registrations', label: 'Registrations', icon: Eye, permission: 'view_registrations' },
-    { to: '/admin/scanner', label: 'QR Scanner', icon: ScanLine, permission: 'check_in' },
+
     { to: '/admin/leaderboard', label: 'Leaderboard', icon: Trophy, permission: 'manage_leaderboard' },
     { to: '/admin/tournaments', label: 'Brackets', icon: LayoutDashboard, permission: 'manage_tournaments' },
   ].filter(a => hasPermission(admin?.role, a.permission)), [admin?.role]);

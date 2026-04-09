@@ -9,15 +9,16 @@ const navItems = [
   { to: '/admin/events', label: 'Events', permission: 'manage_events' },
   { to: '/admin/registrations', label: 'Registrations', permission: 'view_registrations' },
   { to: '/admin/leaderboard', label: 'Leaderboard', permission: 'manage_leaderboard' },
-  { to: '/admin/generalchampionship', label: '🏆 General Championship', permission: 'manage_leaderboard' },
+  { to: '/admin/generalchampionship', label: 'General Championship', permission: 'manage_leaderboard' },
   { to: '/admin/gallery', label: 'Gallery', permission: 'manage_gallery' },
-  { to: '/admin/scanner', label: 'QR Scanner', permission: 'check_in' },
-  { to: '/admin/messages', label: '💬 Messages (CRM)', permission: 'view_registrations' },
+  { to: '/admin/cricket', label: '🏏 Cricket', permission: 'manage_events' },
+
+  { to: '/admin/messages', label: 'Messages (CRM)', permission: 'view_registrations' },
   { to: '/admin/settings', label: 'Settings', permission: 'manage_settings' },
   { to: '/admin/audit', label: 'Audit Logs', permission: 'view_audit' },
   { to: '/admin/users', label: 'Users', permission: 'manage_users' },
   { to: '/admin/tournaments', label: 'Tournaments', permission: 'manage_tournaments' },
-  { to: '/admin/timeline', label: '🗓️ Timeline', permission: 'manage_events' }
+  { to: '/admin/timeline', label: 'Timeline', permission: 'manage_events' }
 ];
 
 export default function AdminLayout() {
@@ -42,7 +43,7 @@ export default function AdminLayout() {
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
-          {visibleNavItems.map(item => (
+          {visibleNavItems.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={() => setSidebarOpen(false)}>
               <span>{item.label}</span>
             </NavLink>

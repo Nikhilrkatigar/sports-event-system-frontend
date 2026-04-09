@@ -7,7 +7,7 @@ import RoundRobinTable from '../../components/public/RoundRobinTable';
 import TrackHeatsBoard from '../../components/public/TrackHeatsBoard';
 import FieldFlightBoard from '../../components/public/FieldFlightBoard';
 import API from '../../utils/api';
-import { formatLabel } from '../../utils/tournaments';
+import { formatLabel, isCricketEvent } from '../../utils/tournaments';
 
 const GENDER_LABELS = { all: 'All', male: 'Boys', female: 'Girls' };
 
@@ -103,7 +103,9 @@ export default function TournamentPage() {
   );
 
   const participantUnit = tournament?.eventId?.type === 'team' ? 'teams' : 'athletes';
-  const pageTitle = tournament?.format === 'track_heats'
+  const pageTitle = isCricketEvent(tournament?.eventId)
+    ? `${tournament?.eventId?.title || 'Cricket Event'} Matches`
+    : tournament?.format === 'track_heats'
     ? `${tournament?.eventId?.title || 'Track Event'} Heats`
     : tournament?.format === 'field_flight'
       ? `${tournament?.eventId?.title || 'Field Event'} Flight`
@@ -126,6 +128,11 @@ export default function TournamentPage() {
               <span className="text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full font-medium">
                 {formatLabel(tournament.format)}
               </span>
+              {isCricketEvent(tournament?.eventId) && (
+                <span className="text-sm bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 px-3 py-1 rounded-full font-medium">
+                  Cricket • {tournament?.eventId?.cricketOvers || 20} overs
+                </span>
+              )}
               {tournament.genderFilter && (
                 <span className={`text-sm px-3 py-1 rounded-full font-medium ${
                   tournament.genderFilter === 'male'

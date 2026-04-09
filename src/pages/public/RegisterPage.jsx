@@ -18,6 +18,12 @@ import { ChevronDown, ChevronUp, User, Loader2, CheckCircle2, ChevronRight } fro
 
 const DEFAULT_DEPARTMENTS = ['BCA', 'BBA', 'B.Com'];
 const MAX_QR_TEXT_LENGTH = 1000;
+const CRICKET_ROLE_OPTIONS = [
+  { value: 'batsman', label: 'Batsman' },
+  { value: 'bowler', label: 'Bowler' },
+  { value: 'all_rounder', label: 'All-rounder' },
+  { value: 'wicket_keeper', label: 'Wicket-keeper' }
+];
 
 // UUCMS Department Code Mapping (Positions 5-6)
 const UUCMS_DEPARTMENT_MAP = {
@@ -41,7 +47,7 @@ const extractYearFromUUCMS = (uucms) => {
   return yearCode && /^\d{2}$/.test(yearCode) ? `20${yearCode}` : null;
 };
 
-const emptyPlayer = () => ({ name: '', uucms: '', phone: '', department: '', gender: '', isSubstitute: false, isTeamLeader: false });
+const emptyPlayer = () => ({ name: '', uucms: '', phone: '', department: '', gender: '', role: '', isSubstitute: false, isTeamLeader: false });
 const isImageDataUrl = (value) => typeof value === 'string' && value.startsWith('data:image/');
 const getSafeFileName = (value) => (value || 'qr-code').replace(/[^a-z0-9-_]/gi, '_').toLowerCase();
 
@@ -212,7 +218,7 @@ export default function RegisterPage() {
 
     for (let i = 0; i < players.length; i++) {
       const player = players[i];
-      if (!player.name || !player.uucms || !player.phone || !player.department || !player.gender) {
+      if (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role)) {
         return toast.error(t('fillAllFields').replace('{number}', i + 1));
       }
     }
@@ -306,8 +312,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!screenshotFile.type.startsWith('image/')) {
-      toast.error('Please upload an image file');
+    if (!['image/png', 'image/jpeg'].includes(screenshotFile.type)) {
+      toast.error('Please upload a PNG, JPG, or JPEG file');
       return;
     }
 
@@ -388,7 +394,7 @@ export default function RegisterPage() {
                   <div className="space-y-2">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept=".png,.jpg,.jpeg,image/png,image/jpeg"
                       className="input-field w-full text-sm"
                       onChange={e => setScreenshotFile(e.target.files[0])}
                       disabled={uploadingScreenshot}
@@ -620,7 +626,7 @@ export default function RegisterPage() {
                 <div className="space-y-3">
                   {players.map((player, idx) => {
                     const isExpanded = expandedPlayer === idx || selectedEvent.type !== 'team';
-                    const hasError = submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender);
+                    const hasError = submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role));
                     return (
                     <div
                       key={idx}
@@ -750,6 +756,22 @@ export default function RegisterPage() {
                             </select>
                             {submitAttempted && !player.gender && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Gender is required</p>}
                           </div>
+                          {selectedEvent?.sportType === 'cricket' && (
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Role <span className="text-red-500">*</span></label>
+                              <select
+                                className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white ${submitAttempted && !player.role ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                                value={player.role}
+                                onChange={e => updatePlayer(idx, 'role', e.target.value)}
+                              >
+                                <option value="">Select role</option>
+                                {CRICKET_ROLE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                              {submitAttempted && !player.role && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Role is required for cricket</p>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

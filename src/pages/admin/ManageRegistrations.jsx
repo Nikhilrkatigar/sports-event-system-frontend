@@ -128,6 +128,7 @@ export default function ManageRegistrations() {
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [editingRegistrationId, setEditingRegistrationId] = useState(null);
   const [addingPlayerForRegistration, setAddingPlayerForRegistration] = useState(null);
+  const [paymentPreview, setPaymentPreview] = useState(null);
   const { confirm } = useConfirm();
 
   const canEditRegistration = hasPermission(admin?.role, 'manage_registrations');
@@ -508,6 +509,79 @@ export default function ManageRegistrations() {
     }
   };
 
+  const formatDateTime = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString();
+  };
+
+  const renderPaymentInfo = (reg) => {
+    const isPaidEvent = Number(reg.eventId?.registrationFee || 0) > 0;
+    if (!isPaidEvent) {
+      return <span className="text-xs text-gray-500">Free event</span>;
+    }
+
+    return (
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {getPaymentStatusBadge(reg.paymentStatus)}
+          {reg.paymentScreenshot ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setPaymentPreview({ src: reg.paymentScreenshot, label: reg.teamName || reg.teamId || reg.registrationNumber || 'Payment proof' })}
+                className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 font-medium"
+              >
+                View Screenshot
+              </button>
+              <a
+                href={reg.paymentScreenshot}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Open File
+              </a>
+            </>
+          ) : (
+            <span className="text-xs text-gray-500">No screenshot uploaded</span>
+          )}
+        </div>
+
+        {reg.paymentScreenshotUploadedAt && (
+          <p className="text-xs text-gray-500">Uploaded: {formatDateTime(reg.paymentScreenshotUploadedAt)}</p>
+        )}
+
+        {reg.paymentStatus === 'paid' && (
+          <p className="text-xs text-green-700">
+            Verified{reg.verifiedByAdmin?.name ? ` by ${reg.verifiedByAdmin.name}` : ''}{reg.paymentVerifiedAt ? ` on ${formatDateTime(reg.paymentVerifiedAt)}` : ''}
+          </p>
+        )}
+
+        {reg.paymentStatus === 'pending' && canEditRegistration && (
+          <button
+            onClick={() => verifyPayment(reg._id, true)}
+            disabled={verifyingPayment === reg._id}
+            className="w-fit text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 disabled:opacity-50"
+          >
+            {verifyingPayment === reg._id ? 'Saving...' : 'Mark Paid'}
+          </button>
+        )}
+
+        {reg.paymentStatus === 'paid' && canEditRegistration && (
+          <button
+            onClick={() => verifyPayment(reg._id, false)}
+            disabled={verifyingPayment === reg._id}
+            className="w-fit text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded hover:bg-gray-300 disabled:opacity-50"
+          >
+            {verifyingPayment === reg._id ? 'Saving...' : 'Reset'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -725,6 +799,63 @@ export default function ManageRegistrations() {
                       <tr className="bg-blue-50">
                         <td colSpan="9" className="px-6 py-4">
                           <div className="space-y-3">
+                            {Number(reg.eventId?.registrationFee || 0) > 0 && (
+                              <div className="bg-white border border-blue-100 rounded-xl p-4">
+                                <div className="flex flex-col lg:flex-row gap-4 lg:items-start lg:justify-between">
+                                  <div className="min-w-0 space-y-2">
+                                    <h3 className="text-sm font-semibold text-gray-900">Payment Details</h3>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      {getPaymentStatusBadge(reg.paymentStatus)}
+                                      {reg.paymentScreenshot ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => setPaymentPreview({ src: reg.paymentScreenshot, label: reg.teamName || reg.teamId || reg.registrationNumber || 'Payment proof' })}
+                                            className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 font-medium"
+                                          >
+                                            View Screenshot
+                                          </button>
+                                          <a
+                                            href={reg.paymentScreenshot}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 hover:underline"
+                                          >
+                                            Open File
+                                          </a>
+                                        </>
+                                      ) : (
+                                        <span className="text-xs text-gray-500">No screenshot uploaded</span>
+                                      )}
+                                    </div>
+                                    {reg.paymentScreenshotUploadedAt && (
+                                      <p className="text-xs text-gray-500">
+                                        Uploaded: {new Date(reg.paymentScreenshotUploadedAt).toLocaleString()}
+                                      </p>
+                                    )}
+                                    {reg.paymentStatus === 'paid' && (
+                                      <p className="text-xs text-green-700">
+                                        Verified{reg.verifiedByAdmin?.name ? ` by ${reg.verifiedByAdmin.name}` : ''}{reg.paymentVerifiedAt ? ` on ${new Date(reg.paymentVerifiedAt).toLocaleString()}` : ''}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {reg.paymentScreenshot && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPaymentPreview({ src: reg.paymentScreenshot, label: reg.teamName || reg.teamId || reg.registrationNumber || 'Payment proof' })}
+                                      className="w-full lg:w-44 h-28 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300"
+                                    >
+                                      <img
+                                        src={reg.paymentScreenshot}
+                                        alt="Payment proof"
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
                             {/* Add Player Button (Team events only) */}
                             {reg.eventId?.type === 'team' && canEditRegistration && (
                               <button
@@ -849,6 +980,39 @@ export default function ManageRegistrations() {
           onSave={(formData) => createNewPlayer(addingPlayerForRegistration, formData)}
           onClose={() => setAddingPlayerForRegistration(null)}
         />
+      )}
+
+      {paymentPreview && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPaymentPreview(null)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Payment Screenshot</h2>
+                <p className="text-sm text-gray-500">{paymentPreview.label}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <a
+                  href={paymentPreview.src}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  Open in new tab
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPaymentPreview(null)}
+                  className="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="bg-gray-50 p-4 overflow-auto max-h-[calc(90vh-70px)]">
+              <img src={paymentPreview.src} alt="Payment screenshot preview" className="w-full h-auto rounded-lg border border-gray-200 bg-white" />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

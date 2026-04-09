@@ -71,6 +71,11 @@ export default function EventDetailPage() {
               <span className={`text-sm font-semibold px-3 py-1 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300' : 'bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300'}`}>
                 {event.type === 'team' ? `Team Event (${event.teamSize} players)` : 'Individual Event'}
               </span>
+              {event.sportType === 'cricket' && (
+                <span className="text-sm font-semibold px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300">
+                  Cricket • {event.cricketOvers || 20} overs
+                </span>
+              )}
               <span className={`text-sm border px-3 py-1 rounded-full ${statusMeta.className}`}>
                 {statusMeta.label}
               </span>
@@ -100,6 +105,7 @@ export default function EventDetailPage() {
               <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-4">
                 <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Tournament Info</div>
                 <div className="text-sm text-gray-700 dark:text-gray-300">Format: {event.type === 'team' ? 'Team event' : 'Individual event'}</div>
+                {event.sportType === 'cricket' && <div className="text-sm text-gray-700 dark:text-gray-300">Scoring mode: Cricket match scoring</div>}
                 <div className="text-sm text-gray-700 dark:text-gray-300">Scoring: {event.scoreOrder === 'asc' ? 'Lower score wins' : 'Higher score wins'}</div>
                 <div className="text-sm text-gray-700 dark:text-gray-300">Schedule available: {hasTournament ? 'Yes' : 'Not yet'}</div>
               </div>

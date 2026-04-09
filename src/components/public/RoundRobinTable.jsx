@@ -1,3 +1,5 @@
+import { getMatchScoreDisplay } from '../../utils/tournaments';
+
 export default function RoundRobinTable({ matches, participants }) {
   const participantRows = participants.filter((participant) => participant.label !== 'BYE');
   const standings = {};
@@ -137,7 +139,7 @@ export default function RoundRobinTable({ matches, participants }) {
                     {match.participant1}
                     {match.participant1Uucms && <span className="block text-[11px] font-normal">{match.participant1Uucms}</span>}
                   </span>
-                  <span className="font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-sm">{match.score1} - {match.score2}</span>
+                  <span className="font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-sm">{getMatchScoreDisplay(match, 1)} - {getMatchScoreDisplay(match, 2)}</span>
                   <span className={`font-semibold text-sm ${match.winner === match.participant2 ? 'text-green-700 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'}`}>
                     {match.participant2}
                     {match.participant2Uucms && <span className="block text-[11px] font-normal">{match.participant2Uucms}</span>}

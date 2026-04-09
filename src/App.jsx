@@ -20,6 +20,8 @@ import LeaderboardPage from './pages/public/LeaderboardPage';
 import TournamentPage from './pages/public/TournamentPage';
 import TournamentsPage from './pages/public/TournamentsPage';
 import TimelinePage from './pages/public/TimelinePage';
+import CricketMatchesPage from './pages/public/CricketMatchesPage';
+import CricketLivePage from './pages/public/CricketLivePage';
 
 // Admin pages
 import LoginPage from './pages/admin/LoginPage';
@@ -32,11 +34,13 @@ import GeneralChampionship from './pages/admin/GeneralChampionship';
 import ManageGallery from './pages/admin/ManageGallery';
 import SiteSettings from './pages/admin/SiteSettings';
 import AuditLogs from './pages/admin/AuditLogs';
-import QRScanner from './pages/admin/QRScanner';
 import ManageUsers from './pages/admin/ManageUsers';
 import ManageTournaments from './pages/admin/ManageTournaments';
 import ManageTimeline from './pages/admin/ManageTimeline';
 import ManageCRM from './pages/admin/ManageCRM';
+import CricketManage from './pages/admin/CricketManage';
+import CricketMatchSetup from './pages/admin/CricketMatchSetup';
+import CricketScoringPanel from './pages/admin/CricketScoringPanel';
 
 const ProtectedRoute = ({ children }) => {
   const { admin, loading } = useAuth();
@@ -132,6 +136,8 @@ export default function App() {
               <Route path="/tournaments" element={<TournamentsPage />} />
               <Route path="/tournaments/:eventId" element={<TournamentPage />} />
               <Route path="/timeline" element={<TimelinePage />} />
+              <Route path="/cricket" element={<CricketMatchesPage />} />
+              <Route path="/cricket/:matchId" element={<CricketLivePage />} />
 
               {/* Admin */}
               <Route path="/admin/login" element={<LoginPage />} />
@@ -148,8 +154,10 @@ export default function App() {
                 <Route path="users" element={<FullAccessRoute><ManageUsers /></FullAccessRoute>} />
                 <Route path="tournaments" element={<PermissionRoute permission="manage_tournaments"><ManageTournaments /></PermissionRoute>} />
                 <Route path="timeline" element={<PermissionRoute permission="manage_events"><ManageTimeline /></PermissionRoute>} />
-                <Route path="scanner" element={<PermissionRoute permission="check_in"><QRScanner /></PermissionRoute>} />
                 <Route path="messages" element={<PermissionRoute permission="view_registrations"><ManageCRM /></PermissionRoute>} />
+                <Route path="cricket" element={<PermissionRoute permission="manage_tournaments"><CricketManage /></PermissionRoute>} />
+                <Route path="cricket/new" element={<PermissionRoute permission="manage_tournaments"><CricketMatchSetup /></PermissionRoute>} />
+                <Route path="cricket/:matchId" element={<PermissionRoute permission="manage_tournaments"><CricketScoringPanel /></PermissionRoute>} />
               </Route>
               </Routes>
               <MobileBottomNav />

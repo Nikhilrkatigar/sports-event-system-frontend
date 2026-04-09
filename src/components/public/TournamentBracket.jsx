@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { ChevronRight } from 'lucide-react';
+import { getMatchScoreDisplay } from '../../utils/tournaments';
 
 /**
  * ==========================================
@@ -144,6 +145,8 @@ function MatchCard({
   const isCompleted = match.status === 'completed';
   const isLive = match.status === 'in_progress';
   const isPending = match.status === 'pending';
+  const scoreDisplay1 = getMatchScoreDisplay(match, 1);
+  const scoreDisplay2 = getMatchScoreDisplay(match, 2);
 
   const handleHover = (state) => {
     setIsHovered(state);
@@ -235,7 +238,7 @@ function MatchCard({
         <ParticipantRow
           participant={match.participant1}
           uucms={match.participant1Uucms}
-          score={match.score1}
+          score={scoreDisplay1}
           isWinner={match.winner === match.participant1}
           isBye={match.participant1 === 'BYE'}
           isHovered={isHovered}
@@ -248,7 +251,7 @@ function MatchCard({
         <ParticipantRow
           participant={match.participant2}
           uucms={match.participant2Uucms}
-          score={match.score2}
+          score={scoreDisplay2}
           isWinner={match.winner === match.participant2}
           isBye={match.participant2 === 'BYE'}
           isHovered={isHovered}
@@ -329,7 +332,7 @@ function ParticipantRow({ participant, uucms, score, isWinner, isBye, isHovered 
           : 'text-base font-semibold text-gray-600 dark:text-gray-400'
         }
       `}>
-        {score != null ? score : '-'}
+        {score || '-'}
       </div>
     </div>
   );
@@ -446,6 +449,8 @@ function MatchDetailModal({ match, onClose }) {
   const [expandedSection, setExpandedSection] = useState(null);
   const isCompleted = match.status === 'completed';
   const hasWinner = match.winner !== null && match.winner !== undefined;
+  const scoreDisplay1 = getMatchScoreDisplay(match, 1);
+  const scoreDisplay2 = getMatchScoreDisplay(match, 2);
 
   return (
     <div
@@ -506,9 +511,9 @@ function MatchDetailModal({ match, onClose }) {
                 Reg #: {match.participant1RegistrationNumber}
               </div>
             )}
-            {match.score1 != null && (
+            {scoreDisplay1 !== '-' && (
               <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-3">
-                Score: {match.score1}
+                Score: {scoreDisplay1}
               </div>
             )}
 
@@ -592,9 +597,9 @@ function MatchDetailModal({ match, onClose }) {
                 Reg #: {match.participant2RegistrationNumber}
               </div>
             )}
-            {match.score2 != null && (
+            {scoreDisplay2 !== '-' && (
               <div className="text-2xl font-bold text-cyan-600 dark:text-cyan-400 mt-3">
-                Score: {match.score2}
+                Score: {scoreDisplay2}
               </div>
             )}
 
@@ -656,7 +661,7 @@ function MatchDetailModal({ match, onClose }) {
                 ✓ Match Completed
               </div>
               <div className="text-lg font-bold text-green-800 dark:text-green-200 mt-2">
-                {match.winner} wins this match!
+                {match.cricketResultText || `${match.winner} wins this match!`}
               </div>
             </div>
           )}

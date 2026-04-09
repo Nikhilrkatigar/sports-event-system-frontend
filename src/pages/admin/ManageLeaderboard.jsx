@@ -234,6 +234,30 @@ export default function ManageLeaderboard() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    const confirmed = await confirm({
+      title: '🗑️ Delete All Entries',
+      message: 'Are you sure you want to DELETE ALL leaderboard entries? This action cannot be undone.',
+      confirmText: 'Delete All',
+      cancelText: 'Cancel',
+      isDangerous: true,
+    });
+    if (!confirmed) return;
+    try {
+      console.log('Calling delete all entries endpoint...');
+      const response = await API.delete(`/leaderboard/admin/delete-all`);
+      console.log('Delete all response:', response);
+      toast.success(response.data?.message || 'All entries deleted successfully!');
+      load();
+    } catch (err) {
+      console.error('Delete all error:', err);
+      console.error('Error response:', err.response);
+      console.error('Error message:', err.message);
+      const errorMsg = err.response?.data?.message || err.message || 'Failed to delete all entries';
+      toast.error(errorMsg);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Leaderboard</h1>
@@ -289,13 +313,22 @@ export default function ManageLeaderboard() {
 
       <div className="mb-6 flex justify-between items-center">
         <h2 className="text-lg font-semibold text-gray-800">Leaderboard Entries</h2>
-        <button 
-          onClick={handleResetAllHype}
-          className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition-colors duration-200"
-          title="Reset hype count for all athletes"
-        >
-          🔄 Reset All Hype
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleResetAllHype}
+            className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium transition-colors duration-200"
+            title="Reset hype count for all athletes"
+          >
+            🔄 Reset All Hype
+          </button>
+          <button 
+            onClick={handleDeleteAll}
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors duration-200"
+            title="Delete all leaderboard entries"
+          >
+            🗑️ Delete All
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
