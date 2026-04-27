@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import API from '../../utils/api';
 import { io } from 'socket.io-client';
+import resolveSocketUrl from '../../utils/socket';
 
 export default function CricketLiveScoring() {
   const { matchId } = useParams();
@@ -70,7 +71,7 @@ export default function CricketLiveScoring() {
   // Socket setup for real-time updates
   useEffect(() => {
     if (!matchId) return;
-    const s = io('/', { transports: ['websocket', 'polling'] });
+    const s = io(resolveSocketUrl(), { transports: ['websocket', 'polling'] });
     s.emit('join_cricket_match', matchId);
     
     s.on('cricket_ball_update', () => {

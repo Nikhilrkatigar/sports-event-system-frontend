@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
+import resolveSocketUrl from '../../utils/socket';
 
 const STATUS_BADGES = {
   upcoming: { label: 'Upcoming', class: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' },
@@ -45,7 +46,7 @@ export default function CricketMatchesPage() {
 
     safeFetch();
 
-    const socket = io('/', { transports: ['websocket', 'polling'] });
+    const socket = io(resolveSocketUrl(), { transports: ['websocket', 'polling'] });
     socketRef.current = socket;
 
     const refreshOnUpdate = () => {
@@ -112,6 +113,75 @@ export default function CricketMatchesPage() {
 
   const filtered = filter === 'all' ? matches : matches.filter(m => m.status === filter);
   const liveMatches = matches.filter(m => m.status === 'live');
+
+  const leaderboard = useMemo(() => {
+    const completedMatches = matches.filter((m) => m.status === 'completed');
+
+    const batsmenMap = new Map();
+    const bowlersMap = new Map();
+
+    completedMatches.forEach((match) => {
+      (match.innings || []).forEach((inning) => {
+        (inning.batsmenStats || []).forEach((b) => {
+          const name = (b.playerName || '').trim();
+          if (!name) return;
+
+          if (!batsmenMap.has(name)) {
+            batsmenMap.set(name, {
+              name,
+              runs: 0,
+              balls: 0,
+              innings: 0
+            });
+          }
+
+          const row = batsmenMap.get(name);
+          row.runs += Number(b.runs || 0);
+          row.balls += Number(b.ballsFaced || 0);
+          row.innings += 1;
+        });
+
+        (inning.bowlerStats || []).forEach((bw) => {
+          const name = (bw.playerName || '').trim();
+          if (!name) return;
+
+          if (!bowlersMap.has(name)) {
+            bowlersMap.set(name, {
+              name,
+              wickets: 0,
+              balls: 0,
+              runs: 0,
+              spells: 0
+            });
+          }
+
+          const row = bowlersMap.get(name);
+          row.wickets += Number(bw.wickets || 0);
+          row.balls += Number(bw.ballsBowled || 0);
+          row.runs += Number(bw.runsConceded || 0);
+          row.spells += 1;
+        });
+      });
+    });
+
+    const topBatsmen = Array.from(batsmenMap.values())
+      .map((b) => ({
+        ...b,
+        strikeRate: b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(2) : '0.00'
+      }))
+      .sort((a, b) => (b.runs - a.runs) || (a.balls - b.balls) || a.name.localeCompare(b.name))
+      .slice(0, 5);
+
+    const topBowlers = Array.from(bowlersMap.values())
+      .map((b) => ({
+        ...b,
+        economy: b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'
+      }))
+      .sort((a, b) => (b.wickets - a.wickets) || (Number(a.economy) - Number(b.economy)) || (a.runs - b.runs) || a.name.localeCompare(b.name))
+      .slice(0, 5);
+
+    return { topBatsmen, topBowlers };
+  }, [matches]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
@@ -182,19 +252,82 @@ export default function CricketMatchesPage() {
           </div>
         )}
 
-        {/* Filter tabs */}
-        <div className="flex items-center gap-2 mb-6 flex-wrap">
-          {['all', 'live', 'upcoming', 'completed'].map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                filter === f
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-white dark:bg-dark-card text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}>
-              {f === 'all' ? 'All Matches' : f.charAt(0).toUpperCase() + f.slice(1)}
-              {f !== 'all' && ` (${matches.filter(m => m.status === f).length})`}
-            </button>
-          ))}
+        {/* Filter tabs + Stats */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
+          <div className="xl:col-span-2 flex items-center gap-2 flex-wrap">
+            {['all', 'live', 'upcoming', 'completed'].map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  filter === f
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'bg-white dark:bg-dark-card text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-dark-border hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}>
+                {f === 'all' ? 'All Matches' : f.charAt(0).toUpperCase() + f.slice(1)}
+                {f !== 'all' && ` (${matches.filter(m => m.status === f).length})`}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white dark:bg-dark-card rounded-2xl border border-gray-100 dark:border-dark-border shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Player Stats</h3>
+              <span className="text-[11px] text-gray-400">Top 5</span>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">Best Batsmen</p>
+                {leaderboard.topBatsmen.length === 0 ? (
+                  <p className="text-xs text-gray-400">No completed match data yet</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {leaderboard.topBatsmen.map((p, i) => (
+                      <div key={p.name} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
+                        <span className="text-gray-400">{i + 1}</span>
+                        <span className="truncate text-gray-800 dark:text-gray-200" title={p.name}>
+                          {p.name}
+                          {i === 0 && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
+                              🧢 Orange Cap
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          <span className="font-bold text-gray-900 dark:text-white">{p.runs}</span> ({p.balls}) SR {p.strikeRate}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-green-600 dark:text-green-400 mb-2">Best Bowlers</p>
+                {leaderboard.topBowlers.length === 0 ? (
+                  <p className="text-xs text-gray-400">No completed match data yet</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {leaderboard.topBowlers.map((p, i) => (
+                      <div key={p.name} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
+                        <span className="text-gray-400">{i + 1}</span>
+                        <span className="truncate text-gray-800 dark:text-gray-200" title={p.name}>
+                          {p.name}
+                          {i === 0 && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
+                              🧢 Purple Cap
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          <span className="font-bold text-green-600 dark:text-green-400">{p.wickets}W</span> {p.balls}b Eco {p.economy}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Match list */}

@@ -360,7 +360,7 @@ export default function HomePage() {
       )}
 
       <footer className="bg-gradient-to-r from-blue-900 to-blue-800 text-white text-center py-8 text-sm shadow-lg">
-        <p className="font-semibold text-lg animate-slide-up">2026 Global College of Management, IT & Commerce - Annual Sports Day</p>
+        <p className="font-semibold text-lg animate-slide-up">2026 Global College of Management, IT & Commerce - IDCL</p>
         <p className="text-blue-300 text-xs mt-2 animate-slide-up" style={{animationDelay: '0.1s'}}>Built and developed by Nikhil Katigar</p>
       </footer>
 

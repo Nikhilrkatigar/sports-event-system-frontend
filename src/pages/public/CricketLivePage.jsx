@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
+import resolveSocketUrl from '../../utils/socket';
 
 const ROLE_BADGES = {
   batsman: { label: 'BAT', color: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' },
@@ -58,24 +59,8 @@ export default function CricketLivePage() {
   // Real-time WebSocket
   useEffect(() => {
     if (!matchId) return;
-    
-    // Determine Socket.IO server URL based on API configuration
-    const getSocketUrl = () => {
-      const apiUrl = (process.env.REACT_APP_API_URL || '').trim();
-      if (apiUrl && /^https?:\/\//i.test(apiUrl)) {
-        // Absolute URL - use its origin
-        const url = new URL(apiUrl);
-        return url.origin;
-      }
-      // Relative URL - use current window origin with backend port
-      if (process.env.NODE_ENV === 'production') {
-        return 'https://sports-event-system-backend.onrender.com';
-      }
-      // Development - use configured Socket URL or default to localhost:5003
-      return process.env.REACT_APP_SOCKET_URL || 'http://localhost:5003';
-    };
-    
-    const socketUrl = getSocketUrl();
+
+    const socketUrl = resolveSocketUrl();
     console.log(`🎯 Connecting to Socket.IO at ${socketUrl}`);
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling'],
@@ -239,11 +224,28 @@ export default function CricketLivePage() {
   const ballsRemaining = match.oversPerSide * 6 - (currentInnings?.totalBalls || 0);
   const reqRate = runsNeeded > 0 && ballsRemaining > 0 ? ((runsNeeded / ballsRemaining) * 6).toFixed(2) : null;
 
+  const formatOverthrowLabel = (delivery) => {
+    const totalRuns = Number(delivery?.totalRuns || 0);
+    const baseRuns = Number(delivery?.overthrowBaseRuns || 0);
+    const overthrowOnlyRuns = Number(delivery?.overthrowRuns || 0);
+
+    if (baseRuns > 0 || overthrowOnlyRuns > 0) {
+      return `${baseRuns}+${overthrowOnlyRuns}ov`;
+    }
+
+    if (totalRuns > 1) {
+      return `1+${totalRuns - 1}ov`;
+    }
+
+    return `${totalRuns}ov`;
+  };
+
   // Recent balls color coding
   const recentBalls = [...deliveries].slice(-24).map(d => {
     if (d.isWicket) return { label: 'W', class: 'bg-red-500 text-white' };
     if (d.isWide) return { label: `${d.totalRuns}wd`, class: 'bg-yellow-400 text-yellow-900' };
     if (d.isNoBall) return { label: `${d.totalRuns}nb`, class: 'bg-yellow-400 text-yellow-900' };
+    if (d.isOverthrow) return { label: formatOverthrowLabel(d), class: 'bg-orange-400 text-orange-900' };
     if (d.isSix) return { label: '6', class: 'bg-purple-500 text-white ring-2 ring-purple-300' };
     if (d.isFour) return { label: '4', class: 'bg-blue-500 text-white ring-2 ring-blue-300' };
     if (d.isBye || d.isLegBye) return { label: `${d.totalRuns}b`, class: 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200' };
@@ -482,7 +484,11 @@ export default function CricketLivePage() {
                         <span className="text-xs font-bold text-gray-400 w-5">{b.battingOrder}</span>
                         <span className="font-medium text-gray-900 dark:text-white text-sm">
                           {b.playerName}
-                          {b.isOut && <span className="text-xs text-red-500 ml-1">({b.dismissalType})</span>}
+                          {b.isOut && (
+                            <span className="text-xs text-red-500 ml-1">
+                              {b.dismissalText ? `(${b.dismissalText})` : `(${b.dismissalType})`}
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="flex gap-4 text-sm">
@@ -525,7 +531,10 @@ export default function CricketLivePage() {
                 <div className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Recent Deliveries</div>
                 <div className="flex flex-wrap gap-2">
                   {recentBalls.map((ball, i) => (
-                    <div key={i} className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shadow-sm transition-all ${ball.class}`}>
+                    <div
+                      key={i}
+                      className={`${ball.label.length > 3 ? 'h-9 min-w-[52px] px-2 rounded-lg text-[10px]' : 'w-9 h-9 rounded-full text-xs'} flex items-center justify-center font-bold shadow-sm transition-all ${ball.class}`}
+                    >
                       {ball.label}
                     </div>
                   ))}
@@ -551,9 +560,23 @@ export default function CricketLivePage() {
                             else if (b.isSix) cls = 'bg-purple-500 text-white';
                             else if (b.isFour) cls = 'bg-blue-500 text-white';
                             else if (b.isWide || b.isNoBall) cls = 'bg-yellow-300 text-yellow-900';
+                            else if (b.isOverthrow) cls = 'bg-orange-400 text-orange-900';
                             else if (b.runsScored > 0) cls = 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300';
-                            const label = b.isWicket ? 'W' : b.isWide ? `${b.totalRuns}wd` : b.isNoBall ? `${b.totalRuns}nb` : b.isBye ? `${b.totalRuns}b` : String(b.runsScored);
-                            return <span key={j} className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${cls}`}>{label}</span>;
+                            const label = b.isWicket
+                              ? 'W'
+                              : b.isWide
+                                ? `${b.totalRuns}wd`
+                                : b.isNoBall
+                                  ? `${b.totalRuns}nb`
+                                  : b.isOverthrow
+                                    ? formatOverthrowLabel(b)
+                                    : b.isBye
+                                      ? `${b.totalRuns}b`
+                                      : String(b.runsScored);
+                            const shapeClass = String(label).length > 3
+                              ? 'h-7 min-w-[46px] px-1.5 rounded-md'
+                              : 'w-7 h-7 rounded-full';
+                            return <span key={j} className={`${shapeClass} flex items-center justify-center text-[10px] font-bold ${cls}`}>{label}</span>;
                           })}
                         </div>
                         <span className={`text-xs font-bold w-10 text-right ${hasWicket ? 'text-red-500' : 'text-gray-600 dark:text-gray-400'}`}>{overRuns} runs</span>

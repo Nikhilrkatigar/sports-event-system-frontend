@@ -5,7 +5,7 @@ export default function WelcomeSplash({ onComplete }) {
   const [displayText, setDisplayText] = useState('');
   const [displaySubtext, setDisplaySubtext] = useState('');
   
-  const fullText = 'Welcome to Annual Sports';
+  const fullText = 'Welcome to IDCL 2k26 Season 3';
   const subtextDisplay = 'Get ready to compete, celebrate, and shine';
 
   useEffect(() => {

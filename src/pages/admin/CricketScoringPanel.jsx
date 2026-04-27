@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import API from '../../utils/api';
 import toast from 'react-hot-toast';
+import resolveSocketUrl from '../../utils/socket';
 
 const DISMISSAL_TYPES = [
   { value: 'bowled', label: 'Bowled' },
@@ -32,6 +33,8 @@ export default function CricketScoringPanel() {
   const [showStartInningsModal, setShowStartInningsModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [showUndoConfirmModal, setShowUndoConfirmModal] = useState(false);
+  const [showNoBallRunsModal, setShowNoBallRunsModal] = useState(false);
+  const [showOverthrowModal, setShowOverthrowModal] = useState(false);
 
   // Wicket form
   const [wicketType, setWicketType] = useState('bowled');
@@ -50,6 +53,36 @@ export default function CricketScoringPanel() {
 
   // End over
   const [newBowlerId, setNewBowlerId] = useState('');
+
+  // No ball runs
+  const [noBallRuns, setNoBallRuns] = useState(0);
+
+  // Bye / Leg-bye runs modal
+  const [showByeModal, setShowByeModal] = useState(false);
+  const [showLegByeModal, setShowLegByeModal] = useState(false);
+  const [byeRuns, setByeRuns] = useState(1);
+  const [legByeRuns, setLegByeRuns] = useState(1);
+
+  // Overthrow runs
+  const [overthrowBaseRuns, setOverthrowBaseRuns] = useState(1);
+  const [overthrowRuns, setOverthrowRuns] = useState(1);
+  const prevTotalBallsRef = useRef(null);
+
+  const formatOverthrowLabel = (delivery) => {
+    const totalRuns = Number(delivery?.totalRuns || 0);
+    const baseRuns = Number(delivery?.overthrowBaseRuns || 0);
+    const overthrowOnlyRuns = Number(delivery?.overthrowRuns || 0);
+
+    if (baseRuns > 0 || overthrowOnlyRuns > 0) {
+      return `${baseRuns}+${overthrowOnlyRuns}ov`;
+    }
+
+    if (totalRuns > 1) {
+      return `1+${totalRuns - 1}ov`;
+    }
+
+    return `${totalRuns}ov`;
+  };
 
   const loadMatch = useCallback(async () => {
     try {
@@ -76,16 +109,62 @@ export default function CricketScoringPanel() {
   // Real-time socket connection
   useEffect(() => {
     if (!matchId) return;
-    const socket = io('/', { transports: ['websocket', 'polling'] });
+    const socket = io(resolveSocketUrl(), { transports: ['websocket', 'polling'] });
     socket.emit('join_cricket_match', matchId);
     socket.on('cricket_ball_update', () => { loadMatch(); loadDeliveries(); });
     socket.on('cricket_wicket', () => loadMatch());
     socket.on('cricket_undo', () => { loadMatch(); loadDeliveries(); });
+    socket.on('cricket_auto_fixtures_created', (payload) => {
+      const count = Number(payload?.count || 0);
+      const firstFixture = Array.isArray(payload?.createdMatches) && payload.createdMatches.length > 0
+        ? `${payload.createdMatches[0].teamA} vs ${payload.createdMatches[0].teamB}`
+        : null;
+      if (count > 0) {
+        toast.success(
+          count === 1 && firstFixture
+            ? `🏆 Next knockout fixture auto-created: ${firstFixture}`
+            : `🏆 ${count} knockout cricket fixtures auto-created`
+        );
+      }
+    });
     return () => {
       socket.emit('leave_cricket_match', matchId);
       socket.disconnect();
     };
-  }, [matchId]);
+  }, [matchId, loadMatch, loadDeliveries]);
+
+  const currentInnings = match?.innings?.find(i => i.inningNumber === match?.currentInning);
+  const battingTeam = currentInnings ? match[currentInnings.battingTeam] : null;
+  const bowlingTeam = currentInnings ? match[currentInnings.bowlingTeam] : null;
+
+  useEffect(() => {
+    if (!currentInnings) return;
+
+    const totalBalls = currentInnings.totalBalls || 0;
+    const previousTotalBalls = prevTotalBallsRef.current;
+
+    // Initialize baseline on first render of current innings state.
+    if (previousTotalBalls === null) {
+      prevTotalBallsRef.current = totalBalls;
+      return;
+    }
+
+    const isLiveInnings =
+      match?.status === 'live'
+      && String(match?.currentState || '').startsWith('innings_')
+      && !currentInnings.isCompleted;
+
+    const ballsAdvanced = totalBalls > previousTotalBalls;
+    const overJustCompleted = ballsAdvanced && totalBalls > 0 && totalBalls % 6 === 0;
+
+    if (isLiveInnings && overJustCompleted) {
+      setNewBowlerId('');
+      setShowEndOverModal(true);
+      toast.success('✅ Over Complete! Select new bowler...');
+    }
+
+    prevTotalBallsRef.current = totalBalls;
+  }, [currentInnings?.totalBalls, currentInnings?.isCompleted, match?.status, match?.currentState]);
 
   if (loading) {
     return (
@@ -98,10 +177,6 @@ export default function CricketScoringPanel() {
   if (!match) {
     return <div className="text-center py-20 text-gray-500">Match not found</div>;
   }
-
-  const currentInnings = match.innings?.find(i => i.inningNumber === match.currentInning);
-  const battingTeam = currentInnings ? match[currentInnings.battingTeam] : null;
-  const bowlingTeam = currentInnings ? match[currentInnings.bowlingTeam] : null;
 
   const striker = currentInnings?.batsmenStats?.find(b => b.playerId === match.currentStrikerId && !b.isOut);
   const nonStriker = currentInnings?.batsmenStats?.find(b => b.playerId === match.currentNonStrikerId && !b.isOut);
@@ -145,9 +220,45 @@ export default function CricketScoringPanel() {
 
   const handleRun = (runs) => recordBall({ runsScored: runs });
   const handleWide = () => recordBall({ isWide: true, runsScored: 0 });
-  const handleNoBall = (runs = 0) => recordBall({ isNoBall: true, runsScored: runs });
-  const handleBye = (runs = 1) => recordBall({ isBye: true, runsScored: runs });
-  const handleLegBye = (runs = 1) => recordBall({ isLegBye: true, runsScored: runs });
+  const handleNoBall = (runs = 0) => {
+    if (runs > 0) {
+      recordBall({ isNoBall: true, runsScored: runs });
+      setShowNoBallRunsModal(false);
+      setNoBallRuns(0);
+    } else {
+      setShowNoBallRunsModal(true);
+      setNoBallRuns(0);
+    }
+  };
+  const handleBye = (runs) => {
+    if (runs !== undefined) {
+      recordBall({ isBye: true, runsScored: runs });
+      setShowByeModal(false);
+      setByeRuns(1);
+    } else {
+      setByeRuns(1);
+      setShowByeModal(true);
+    }
+  };
+  const handleLegBye = (runs) => {
+    if (runs !== undefined) {
+      recordBall({ isLegBye: true, runsScored: runs });
+      setShowLegByeModal(false);
+      setLegByeRuns(1);
+    } else {
+      setLegByeRuns(1);
+      setShowLegByeModal(true);
+    }
+  };
+  const handleOverthrow = (baseRuns, overthrowOnlyRuns) => {
+    const totalRuns = Number(baseRuns || 0) + Number(overthrowOnlyRuns || 0);
+    return recordBall({
+      isOverthrow: true,
+      runsScored: totalRuns,
+      overthrowBaseRuns: Number(baseRuns || 0),
+      overthrowRuns: Number(overthrowOnlyRuns || 0)
+    });
+  };
 
   const handleWicket = async () => {
     if (!wicketType) return toast.error('Select dismissal type');
@@ -284,6 +395,7 @@ export default function CricketScoringPanel() {
     if (d.isWicket) return { label: 'W', color: 'bg-red-500 text-white' };
     if (d.isWide) return { label: `${d.totalRuns}wd`, color: 'bg-yellow-400 text-yellow-900' };
     if (d.isNoBall) return { label: `${d.totalRuns}nb`, color: 'bg-yellow-400 text-yellow-900' };
+    if (d.isOverthrow) return { label: formatOverthrowLabel(d), color: 'bg-orange-400 text-orange-900' };
     if (d.isSix) return { label: '6', color: 'bg-purple-500 text-white' };
     if (d.isFour) return { label: '4', color: 'bg-blue-500 text-white' };
     if (d.isBye || d.isLegBye) return { label: `${d.totalRuns}b`, color: 'bg-gray-400 text-white' };
@@ -517,7 +629,10 @@ export default function CricketScoringPanel() {
           <div className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">Recent Balls</div>
           <div className="flex flex-wrap gap-2">
             {recentBalls.map((ball, i) => (
-              <span key={i} className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${ball.color}`}>
+              <span
+                key={i}
+                className={`${ball.label.length > 3 ? 'h-9 min-w-[52px] px-2 rounded-lg text-[10px]' : 'w-9 h-9 rounded-full text-xs'} flex items-center justify-center font-bold shadow-sm ${ball.color}`}
+              >
                 {ball.label}
               </span>
             ))}
@@ -549,17 +664,20 @@ export default function CricketScoringPanel() {
 
         {/* Extras */}
         <div className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Extras</div>
-        <div className="grid grid-cols-4 gap-2 mb-4">
+        <div className="grid grid-cols-3 gap-2 mb-4">
           <button onClick={handleWide} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-800 transition-all active:scale-95 disabled:opacity-50">
             Wide
           </button>
           <button onClick={() => handleNoBall(0)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-800 transition-all active:scale-95 disabled:opacity-50">
             No Ball
           </button>
-          <button onClick={() => handleBye(1)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all active:scale-95 disabled:opacity-50">
+          <button onClick={() => setShowOverthrowModal(true)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 border border-orange-200 dark:border-orange-800 transition-all active:scale-95 disabled:opacity-50">
+            Overthrow
+          </button>
+          <button onClick={() => handleBye()} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all active:scale-95 disabled:opacity-50">
             Bye
           </button>
-          <button onClick={() => handleLegBye(1)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all active:scale-95 disabled:opacity-50">
+          <button onClick={() => handleLegBye()} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all active:scale-95 disabled:opacity-50">
             Leg Bye
           </button>
         </div>
@@ -570,7 +688,16 @@ export default function CricketScoringPanel() {
             className="py-4 rounded-xl text-base font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200 dark:shadow-red-900/50 transition-all active:scale-95 disabled:opacity-50">
             🔴 WICKET
           </button>
-          <button onClick={() => { setShowEndOverModal(true); setNewBowlerId(''); }} disabled={sending}
+          <button
+            onClick={() => {
+              const ballsInCurrentOver = currentInnings?.currentOverBalls ?? (currentInnings?.totalBalls % 6);
+              if (ballsInCurrentOver > 0 && ballsInCurrentOver < 6) {
+                if (!window.confirm(`Only ${ballsInCurrentOver} ball(s) bowled in this over. End over early?`)) return;
+              }
+              setShowEndOverModal(true);
+              setNewBowlerId('');
+            }}
+            disabled={sending}
             className="py-4 rounded-xl text-base font-bold bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/50 transition-all active:scale-95 disabled:opacity-50">
             ⏩ END OVER
           </button>
@@ -671,6 +798,119 @@ export default function CricketScoringPanel() {
               ))}
               <button onClick={handleEndOver} disabled={!newBowlerId} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                 Start New Over
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BYE RUNS MODAL ── */}
+      {showByeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowByeModal(false); setByeRuns(1); }}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">Bye Runs</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">How many bye runs were scored?</p>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {[1, 2, 3, 4].map(r => (
+                <button key={r} onClick={() => setByeRuns(r)}
+                  className={`py-3 rounded-lg font-bold text-lg transition-all ${byeRuns === r ? 'bg-gray-600 text-white scale-105' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowByeModal(false); setByeRuns(1); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+              <button onClick={() => handleBye(byeRuns)} disabled={sending} className="flex-1 py-3 bg-gray-600 text-white rounded-xl font-bold hover:bg-gray-700 disabled:opacity-50">
+                Confirm ({byeRuns})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── LEG BYE RUNS MODAL ── */}
+      {showLegByeModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowLegByeModal(false); setLegByeRuns(1); }}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">Leg Bye Runs</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">How many leg bye runs were scored?</p>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {[1, 2, 3, 4].map(r => (
+                <button key={r} onClick={() => setLegByeRuns(r)}
+                  className={`py-3 rounded-lg font-bold text-lg transition-all ${legByeRuns === r ? 'bg-gray-600 text-white scale-105' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowLegByeModal(false); setLegByeRuns(1); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+              <button onClick={() => handleLegBye(legByeRuns)} disabled={sending} className="flex-1 py-3 bg-gray-600 text-white rounded-xl font-bold hover:bg-gray-700 disabled:opacity-50">
+                Confirm ({legByeRuns})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── NO BALL RUNS MODAL ── */}
+      {showNoBallRunsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowNoBallRunsModal(false); setNoBallRuns(0); }}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-yellow-700 dark:text-yellow-300 mb-2">⚡ No Ball - Free Hit!</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">How many runs were scored off this no ball?</p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[0, 1, 2, 3, 4, 6].map(r => (
+                <button key={r} onClick={() => setNoBallRuns(r)}
+                  className={`py-3 rounded-lg font-bold text-lg transition-all ${noBallRuns === r ? 'bg-yellow-500 text-white scale-105' : 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowNoBallRunsModal(false); setNoBallRuns(0); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+              <button onClick={() => handleNoBall(noBallRuns)} disabled={sending} className="flex-1 py-3 bg-yellow-600 text-white rounded-xl font-bold hover:bg-yellow-700 disabled:opacity-50">
+                Confirm ({noBallRuns})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── OVERTHROW MODAL ── */}
+      {showOverthrowModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowOverthrowModal(false); setOverthrowBaseRuns(1); setOverthrowRuns(1); }}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-orange-700 dark:text-orange-300 mb-2">🎯 Overthrow</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Set completed runs + overthrow runs</p>
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase">Completed Runs</p>
+              <div className="grid grid-cols-4 gap-2">
+                {[0, 1, 2, 3].map(r => (
+                  <button key={`base-${r}`} onClick={() => setOverthrowBaseRuns(r)}
+                    className={`py-2 rounded-lg font-bold text-sm transition-all ${overthrowBaseRuns === r ? 'bg-amber-500 text-white scale-105' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'}`}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase">Overthrow Runs</p>
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {[1, 2, 3, 4].map(r => (
+                <button key={r} onClick={() => setOverthrowRuns(r)}
+                  className={`py-3 rounded-lg font-bold text-lg transition-all ${overthrowRuns === r ? 'bg-orange-500 text-white scale-105' : 'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800'}`}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            </div>
+            <div className="mb-4 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 px-3 py-2 text-sm text-orange-700 dark:text-orange-300">
+              Label Preview: <span className="font-bold">{overthrowBaseRuns}+{overthrowRuns}ov</span>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => { setShowOverthrowModal(false); setOverthrowBaseRuns(1); setOverthrowRuns(1); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+              <button onClick={() => { handleOverthrow(overthrowBaseRuns, overthrowRuns); setShowOverthrowModal(false); setOverthrowBaseRuns(1); setOverthrowRuns(1); }} disabled={sending} className="flex-1 py-3 bg-orange-600 text-white rounded-xl font-bold hover:bg-orange-700 disabled:opacity-50">
+                Record ({overthrowBaseRuns + overthrowRuns})
               </button>
             </div>
           </div>
