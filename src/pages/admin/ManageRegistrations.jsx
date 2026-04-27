@@ -99,6 +99,8 @@ const formatGender = (gender) => {
   return 'Unspecified';
 };
 
+const normalizeTeamName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
+
 const getPlayerRole = (player) => {
   if (player.isSubstitute) {
     return <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full font-medium">Substitute</span>;
@@ -324,7 +326,7 @@ export default function ManageRegistrations() {
     }
     
     const previousRegistrations = registrations;
-    const trimmedName = newTeamName.trim();
+    const trimmedName = normalizeTeamName(newTeamName);
     setRegistrations(prev => prev.map(reg =>
       reg._id === registrationId ? { ...reg, teamName: trimmedName } : reg
     ));
@@ -713,7 +715,7 @@ export default function ManageRegistrations() {
                             <input
                               type="text"
                               value={editingTeamName}
-                              onChange={e => setEditingTeamName(e.target.value)}
+                              onChange={e => setEditingTeamName(normalizeTeamName(e.target.value))}
                               className="input-field text-sm py-1 px-2"
                               placeholder="Team name"
                               autoFocus
@@ -738,7 +740,7 @@ export default function ManageRegistrations() {
                               <button
                                 onClick={() => {
                                   setEditingTeam(reg._id);
-                                  setEditingTeamName(reg.teamName || '');
+                                  setEditingTeamName(normalizeTeamName(reg.teamName || ''));
                                 }}
                                 className="text-xs text-blue-600 hover:underline"
                               >

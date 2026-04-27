@@ -50,6 +50,7 @@ const extractYearFromUUCMS = (uucms) => {
 const emptyPlayer = () => ({ name: '', uucms: '', phone: '', department: '', gender: '', role: '', isSubstitute: false, isTeamLeader: false });
 const isImageDataUrl = (value) => typeof value === 'string' && value.startsWith('data:image/');
 const getSafeFileName = (value) => (value || 'qr-code').replace(/[^a-z0-9-_]/gi, '_').toLowerCase();
+const normalizeTeamName = (value) => String(value || '').trim().replace(/\s+/g, ' ').toUpperCase();
 
 const getRegistrationQrSource = (registration) => {
   if (typeof registration?.qrCode === 'string' && registration.qrCode) return registration.qrCode;
@@ -97,6 +98,8 @@ export default function RegisterPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [maxPlayersPerTeam, setMaxPlayersPerTeam] = useState(5);
   const [maxSingleEventRegistrations, setMaxSingleEventRegistrations] = useState(2);
+  const [checkingTeamName, setCheckingTeamName] = useState(false);
+  const [teamNameAvailability, setTeamNameAvailability] = useState({ available: null, message: '' });
 
   useEffect(() => {
     Promise.all([API.get('/events'), API.get('/settings')])
@@ -129,6 +132,7 @@ export default function RegisterPage() {
   const selectEvent = (event) => {
     setSelectedEvent(event);
     setTeamName('');
+    setTeamNameAvailability({ available: null, message: '' });
     setPlayerSingleEventCount(null);
     if (event.type === 'team') {
       const nextPlayers = Array.from({ length: event.teamSize }, (_, index) => ({ ...emptyPlayer(), isTeamLeader: index === 0 }));
@@ -207,6 +211,46 @@ export default function RegisterPage() {
     return departments.filter(dept => selectedEvent.allowedDepartments.includes(dept));
   }, [selectedEvent, departments]);
 
+  useEffect(() => {
+    if (selectedEvent?.type !== 'team') {
+      setCheckingTeamName(false);
+      setTeamNameAvailability({ available: null, message: '' });
+      return undefined;
+    }
+
+    const normalizedTeamName = normalizeTeamName(teamName);
+    if (!normalizedTeamName) {
+      setCheckingTeamName(false);
+      setTeamNameAvailability({ available: null, message: '' });
+      return undefined;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setCheckingTeamName(true);
+      API.get('/registrations/team-name-availability', {
+        params: { teamName: normalizedTeamName }
+      })
+        .then((res) => {
+          setTeamName(normalizedTeamName);
+          setTeamNameAvailability({
+            available: Boolean(res.data?.available),
+            message: res.data?.available
+              ? 'Team name is available'
+              : `Team name ${res.data?.normalizedTeamName || normalizedTeamName} is already taken`
+          });
+        })
+        .catch((err) => {
+          setTeamNameAvailability({
+            available: null,
+            message: err.response?.data?.message || 'Could not check team name availability'
+          });
+        })
+        .finally(() => setCheckingTeamName(false));
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [teamName, selectedEvent]);
+
   const handleSubmit = async () => {
     setSubmitAttempted(true);
     if (!selectedEvent) return toast.error(t('selectEventError'));
@@ -214,6 +258,11 @@ export default function RegisterPage() {
 
     if (selectedEvent.type === 'team' && !teamName.trim()) {
       return toast.error(t('teamNamePlaceholder'));
+    }
+
+    const normalizedTeamName = selectedEvent.type === 'team' ? normalizeTeamName(teamName) : '';
+    if (selectedEvent.type === 'team' && teamNameAvailability.available === false) {
+      return toast.error(teamNameAvailability.message || 'Team name is already taken');
     }
 
     for (let i = 0; i < players.length; i++) {
@@ -257,7 +306,7 @@ export default function RegisterPage() {
     const res = await API.post('/registrations', {
         eventId: selectedEvent._id,
         players,
-        teamName: selectedEvent.type === 'team' ? teamName : null
+        teamName: selectedEvent.type === 'team' ? normalizedTeamName : null
       });
       setSuccess(res.data);
       toast.success(t('registeredSuccessfully'));
@@ -617,9 +666,25 @@ export default function RegisterPage() {
                       className={`input-field w-full text-base dark:bg-gray-800/80 dark:border-gray-700 dark:text-white relative z-10 transition-colors focus:bg-white ${submitAttempted && !teamName ? 'border-red-400 focus:ring-red-500/20' : ''}`}
                       placeholder="e.g. The Champions"
                       value={teamName}
-                      onChange={e => setTeamName(e.target.value)}
+                      onChange={e => {
+                        setTeamName(normalizeTeamName(e.target.value));
+                        setTeamNameAvailability({ available: null, message: '' });
+                      }}
                     />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 relative z-10">This name will appear in the tournament bracket and reports.</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 relative z-10">This name will appear in the tournament bracket and reports. It is stored in uppercase and must be unique.</p>
+                    {teamName && (
+                      <p className={`text-xs mt-2 relative z-10 ${
+                        teamNameAvailability.available === true
+                          ? 'text-green-600 dark:text-green-400'
+                          : teamNameAvailability.available === false
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}>
+                        {checkingTeamName
+                          ? 'Checking team name availability...'
+                          : teamNameAvailability.message || 'Enter a team name to check availability'}
+                      </p>
+                    )}
                   </div>
                 )}
 
