@@ -33,6 +33,40 @@ const empty = {
   imageUrl: ''
 };
 
+const toLocalDateInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const toLocalDateTimeInputValue = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const toIsoFromDateInput = (value) => {
+  if (!value) return '';
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+};
+
+const toIsoFromDateTimeInput = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+};
+
 export default function ManageEvents() {
   const [events, setEvents] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -69,6 +103,14 @@ export default function ManageEvents() {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (v !== '' && k !== 'imageUrl' && k !== 'paymentQRCode') {
+          if (k === 'date') {
+            fd.append(k, toIsoFromDateInput(v));
+            return;
+          }
+          if (k === 'registrationDeadline') {
+            fd.append(k, toIsoFromDateTimeInput(v));
+            return;
+          }
           // Handle arrays by converting to JSON
           if (Array.isArray(v)) {
             fd.append(k, JSON.stringify(v));
@@ -118,9 +160,9 @@ export default function ManageEvents() {
       upiPaymentLink: event.upiPaymentLink || '',
       paymentQRCode: event.paymentQRCode || '',
       imageUrl: event.image || '',
-      date: event.date ? event.date.substring(0, 10) : '',
+      date: toLocalDateInputValue(event.date),
       startTime: event.startTime || '',
-      registrationDeadline: event.registrationDeadline ? event.registrationDeadline.substring(0, 16) : ''
+      registrationDeadline: toLocalDateTimeInputValue(event.registrationDeadline)
     });
     setEditId(event._id);
     setShowForm(true);
