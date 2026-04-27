@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import Navbar from '../../components/public/Navbar';
 import API from '../../utils/api';
 
@@ -14,20 +15,100 @@ export default function CricketMatchesPage() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const socketRef = useRef(null);
+  const joinedMatchIdsRef = useRef(new Set());
+  const matchesRef = useRef([]);
+
+  const fetchMatches = useCallback(async () => {
+    try {
+      const res = await API.get('/cricket/matches');
+      setMatches(res.data || []);
+      return res.data || [];
+    } catch {
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    matchesRef.current = matches;
+  }, [matches]);
 
   useEffect(() => {
     let mounted = true;
-    const fetchMatches = async () => {
-      try {
-        const res = await API.get('/cricket/matches');
-        if (mounted) setMatches(res.data || []);
-      } catch { /* silent */ }
-      finally { if (mounted) setLoading(false); }
+
+    const safeFetch = async () => {
+      if (!mounted) return [];
+      return fetchMatches();
     };
-    fetchMatches();
-    const interval = setInterval(fetchMatches, 30000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, []);
+
+    safeFetch();
+
+    const socket = io('/', { transports: ['websocket', 'polling'] });
+    socketRef.current = socket;
+
+    const refreshOnUpdate = () => {
+      safeFetch();
+    };
+
+    const joinAllCurrentRooms = () => {
+      const currentIds = (matchesRef.current || []).map((m) => m?._id).filter(Boolean);
+      currentIds.forEach((id) => {
+        socket.emit('join_cricket_match', id);
+        joinedMatchIdsRef.current.add(id);
+      });
+    };
+
+    socket.on('connect', joinAllCurrentRooms);
+
+    socket.on('cricket_ball_update', refreshOnUpdate);
+    socket.on('cricket_wicket', refreshOnUpdate);
+    socket.on('cricket_innings_start', refreshOnUpdate);
+    socket.on('cricket_innings_end', refreshOnUpdate);
+    socket.on('cricket_match_end', refreshOnUpdate);
+    socket.on('cricket_undo', refreshOnUpdate);
+
+    // Keep polling as a fallback in case socket reconnects late.
+    const interval = setInterval(safeFetch, 15000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      socket.off('connect', joinAllCurrentRooms);
+      socket.off('cricket_ball_update', refreshOnUpdate);
+      socket.off('cricket_wicket', refreshOnUpdate);
+      socket.off('cricket_innings_start', refreshOnUpdate);
+      socket.off('cricket_innings_end', refreshOnUpdate);
+      socket.off('cricket_match_end', refreshOnUpdate);
+      socket.off('cricket_undo', refreshOnUpdate);
+      joinedMatchIdsRef.current.forEach((id) => socket.emit('leave_cricket_match', id));
+      joinedMatchIdsRef.current.clear();
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [fetchMatches]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    const nextIds = new Set(matches.map((m) => m?._id).filter(Boolean));
+
+    joinedMatchIdsRef.current.forEach((id) => {
+      if (!nextIds.has(id)) {
+        socket.emit('leave_cricket_match', id);
+        joinedMatchIdsRef.current.delete(id);
+      }
+    });
+
+    nextIds.forEach((id) => {
+      if (!joinedMatchIdsRef.current.has(id)) {
+        socket.emit('join_cricket_match', id);
+        joinedMatchIdsRef.current.add(id);
+      }
+    });
+  }, [matches]);
 
   const filtered = filter === 'all' ? matches : matches.filter(m => m.status === filter);
   const liveMatches = matches.filter(m => m.status === 'live');

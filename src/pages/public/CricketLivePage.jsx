@@ -77,20 +77,16 @@ export default function CricketLivePage() {
     
     const socketUrl = getSocketUrl();
     console.log(`🎯 Connecting to Socket.IO at ${socketUrl}`);
-    const socket = io(socketUrl, { transports: ['websocket', 'polling'] });
-    
-    socket.on('connect', () => {
-      console.log(`✅ Socket.IO connected: ${socket.id}`);
-      socket.emit('join_cricket_match', matchId);
-      console.log(`🎫 Joining cricket room: cricket:${matchId}`);
-    });
-
-    socket.on('cricket_match_joined', (data) => {
-      console.log(`✅ Successfully joined cricket match:`, data);
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
     });
 
     const handleUpdate = async () => {
-      console.log(`⚡ Received cricket_ball_update - refreshing data...`);
+      console.log(`⚡ Live update received - refreshing data...`);
       try {
         const [matchRes, scorecardRes] = await Promise.all([
           API.get(`/cricket/matches/${matchId}`),
@@ -99,7 +95,7 @@ export default function CricketLivePage() {
         const latestMatch = matchRes.data;
         setMatch(latestMatch);
         setScorecard(scorecardRes.data);
-        
+
         // Load deliveries for current inning
         if (latestMatch?.currentInning) {
           const delivRes = await API.get(`/cricket/matches/${matchId}/deliveries?inning=${latestMatch.currentInning}`);
@@ -111,42 +107,88 @@ export default function CricketLivePage() {
       }
     };
 
-    socket.on('cricket_ball_update', () => handleUpdate());
+    const onConnect = () => {
+      console.log(`✅ Socket.IO connected: ${socket.id}`);
+      socket.emit('join_cricket_match', matchId);
+      console.log(`🎫 Joining cricket room: cricket:${matchId}`);
+    };
 
-    socket.on('cricket_wicket', async (data) => {
+    const onMatchJoined = (data) => {
+      console.log(`✅ Successfully joined cricket match:`, data);
+    };
+
+    const onBallUpdate = () => {
+      handleUpdate();
+    };
+
+    const onWicket = async (data) => {
       console.log(`🏏 Wicket! ${data.wicketData.batsmanName} is out!`);
       setWicketFlash(data.wicketData);
       setTimeout(() => setWicketFlash(null), 5000);
       await handleUpdate();
-    });
+    };
 
-    socket.on('cricket_innings_end', () => {
+    const onInningsEnd = () => {
       console.log(`🏁 Innings ended - refreshing...`);
       handleUpdate();
-    });
-    socket.on('cricket_innings_start', () => {
+    };
+
+    const onInningsStart = () => {
       console.log(`🚀 Innings started - refreshing...`);
       handleUpdate();
-    });
-    socket.on('cricket_match_end', () => {
+    };
+
+    const onMatchEnd = () => {
       console.log(`🏆 Match ended!`);
       handleUpdate();
-    });
-    socket.on('cricket_undo', () => {
+    };
+
+    const onUndo = () => {
       console.log(`↩️ Ball undone - refreshing...`);
       handleUpdate();
-    });
+    };
 
-    socket.on('disconnect', () => {
+    const onDisconnect = () => {
       console.log(`❌ Socket.IO disconnected`);
-    });
+    };
 
-    socket.on('error', (error) => {
+    const onError = (error) => {
       console.error(`❌ Socket.IO error:`, error);
-    });
+    };
+
+    const onConnectError = (error) => {
+      console.error(`❌ Socket.IO connect_error:`, error?.message || error);
+    };
+
+    socket.on('connect', onConnect);
+    socket.on('cricket_match_joined', onMatchJoined);
+    socket.on('cricket_ball_update', onBallUpdate);
+    socket.on('cricket_wicket', onWicket);
+    socket.on('cricket_innings_end', onInningsEnd);
+    socket.on('cricket_innings_start', onInningsStart);
+    socket.on('cricket_match_end', onMatchEnd);
+    socket.on('cricket_undo', onUndo);
+    socket.on('disconnect', onDisconnect);
+    socket.on('error', onError);
+    socket.on('connect_error', onConnectError);
+
+    // Fallback polling keeps UI fresh even if socket reconnect is delayed.
+    const interval = setInterval(handleUpdate, 15000);
 
     return () => {
       console.log(`👋 Leaving cricket match room...`);
+      clearInterval(interval);
+      socket.off('connect', onConnect);
+      socket.off('cricket_match_joined', onMatchJoined);
+      socket.off('cricket_ball_update', onBallUpdate);
+      socket.off('cricket_wicket', onWicket);
+      socket.off('cricket_innings_end', onInningsEnd);
+      socket.off('cricket_innings_start', onInningsStart);
+      socket.off('cricket_match_end', onMatchEnd);
+      socket.off('cricket_undo', onUndo);
+      socket.off('disconnect', onDisconnect);
+      socket.off('error', onError);
+      socket.off('connect_error', onConnectError);
       socket.emit('leave_cricket_match', matchId);
       socket.disconnect();
     };
