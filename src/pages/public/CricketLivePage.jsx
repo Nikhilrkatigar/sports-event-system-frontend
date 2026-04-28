@@ -760,7 +760,7 @@ export default function CricketLivePage() {
 
         {/* ══════════════ SQUADS TAB ══════════════ */}
         {activeTab === 'squads' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className="grid grid-cols-2 gap-3 animate-fade-in">
             {[match.teamA, match.teamB].map((team, ti) => (
               <div key={ti} className="bg-white dark:bg-dark-card rounded-xl border border-gray-100 dark:border-dark-border shadow-sm overflow-hidden">
                 <div className={`px-4 py-3 font-bold text-white ${ti === 0 ? 'bg-gradient-to-r from-blue-800 to-blue-700' : 'bg-gradient-to-r from-red-800 to-red-700'}`}>
@@ -770,21 +770,19 @@ export default function CricketLivePage() {
                   {team?.players?.filter(p => p.isPlaying).map((player, pi) => {
                     const roleBadge = ROLE_BADGES[player.role] || ROLE_BADGES.batsman;
                     return (
-                      <div key={pi} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                        <span className="text-sm font-bold text-gray-400 w-6 text-center">{pi + 1}</span>
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900 dark:text-white text-sm">
+                      <div key={pi} className="flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                        <span className="text-xs font-bold text-gray-400 w-5 text-center flex-shrink-0">{pi + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 dark:text-white text-xs truncate">
                             {player.name}
-                            {player.isCaptain && <span className="text-xs text-yellow-600 dark:text-yellow-400 font-bold ml-1.5">(C)</span>}
-                            {player.isViceCaptain && <span className="text-xs text-blue-600 dark:text-blue-400 font-bold ml-1.5">(VC)</span>}
+                            {player.isCaptain && <span className="text-yellow-600 dark:text-yellow-400 font-bold ml-1">(C)</span>}
+                            {player.isViceCaptain && <span className="text-blue-600 dark:text-blue-400 font-bold ml-1">(VC)</span>}
                           </p>
-                          {(player.department || player.uucms) && (
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {player.department}{player.department && player.uucms ? ' • ' : ''}{player.uucms}
-                            </p>
+                          {player.department && (
+                            <p className="text-[10px] text-gray-400 mt-0.5 truncate">{player.department}</p>
                           )}
                         </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${roleBadge.color}`}>{roleBadge.label}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${roleBadge.color}`}>{roleBadge.label}</span>
                       </div>
                     );
                   })}

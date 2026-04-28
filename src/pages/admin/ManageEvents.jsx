@@ -74,6 +74,7 @@ export default function ManageEvents() {
   const [editId, setEditId] = useState(null);
   const [file, setFile] = useState(null);
   const [qrCodeFile, setQrCodeFile] = useState(null);
+  const [qrCodeMode, setQrCodeMode] = useState('upload');
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -102,7 +103,7 @@ export default function ManageEvents() {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
-        if (v !== '' && k !== 'imageUrl' && k !== 'paymentQRCode') {
+        if (v !== '' && k !== 'imageUrl' && k !== 'paymentQRCode' && k !== 'paymentQRCodeUrl') {
           if (k === 'date') {
             fd.append(k, toIsoFromDateInput(v));
             return;
@@ -121,8 +122,9 @@ export default function ManageEvents() {
       });
       if (imageMode === 'upload' && file) fd.append('image', file);
       else if (imageMode === 'url' && form.imageUrl) fd.set('image', form.imageUrl);
-      
-      if (qrCodeFile) fd.append('paymentQRCode', qrCodeFile);
+
+      if (qrCodeMode === 'upload' && qrCodeFile) fd.append('paymentQRCode', qrCodeFile);
+      else if (qrCodeMode === 'url' && form.paymentQRCodeUrl) fd.append('paymentQRCode', form.paymentQRCodeUrl);
 
       if (editId) {
         await API.put(`/events/${editId}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -135,6 +137,7 @@ export default function ManageEvents() {
       setEditId(null);
       setFile(null);
       setQrCodeFile(null);
+      setQrCodeMode('upload');
       setShowForm(false);
       load();
     } catch (err) {
@@ -159,6 +162,7 @@ export default function ManageEvents() {
       registrationFee: event.registrationFee || 0,
       upiPaymentLink: event.upiPaymentLink || '',
       paymentQRCode: event.paymentQRCode || '',
+      paymentQRCodeUrl: event.paymentQRCode?.startsWith('http') ? event.paymentQRCode : '',
       imageUrl: event.image || '',
       date: toLocalDateInputValue(event.date),
       startTime: event.startTime || '',
@@ -167,6 +171,7 @@ export default function ManageEvents() {
     setEditId(event._id);
     setShowForm(true);
     setImageMode('url');
+    setQrCodeMode(event.paymentQRCode?.startsWith('http') ? 'url' : 'upload');
   };
 
   const handleDelete = async (id) => {
@@ -515,9 +520,35 @@ export default function ManageEvents() {
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Payment QR Code <span className="text-gray-400 text-xs">(optional, alternative to link)</span></label>
-              <input type="file" accept="image/*" className="input-field" onChange={e => setQrCodeFile(e.target.files[0])} />
-              {qrCodeFile && <p className="text-xs text-blue-600 mt-1">✓ File selected: {qrCodeFile.name}</p>}
-              {form.paymentQRCode && !qrCodeFile && <p className="text-xs text-green-600 mt-1">✓ QR code already uploaded</p>}
+              <div className="flex gap-3 mb-2">
+                {['upload', 'url'].map(mode => (
+                  <label key={mode} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input type="radio" name="qrCodeMode" checked={qrCodeMode === mode} onChange={() => { setQrCodeMode(mode); setQrCodeFile(null); }} className="accent-blue-600" />
+                    {mode === 'upload' ? 'Upload File' : 'Image URL'}
+                  </label>
+                ))}
+              </div>
+              {qrCodeMode === 'upload' ? (
+                <>
+                  <input type="file" accept="image/*" className="input-field" onChange={e => setQrCodeFile(e.target.files[0])} />
+                  {qrCodeFile && <p className="text-xs text-blue-600 mt-1">✓ File selected: {qrCodeFile.name}</p>}
+                  {form.paymentQRCode && !form.paymentQRCode.startsWith('http') && !qrCodeFile && <p className="text-xs text-green-600 mt-1">✓ QR code already uploaded</p>}
+                </>
+              ) : (
+                <>
+                  <input
+                    type="url"
+                    className="input-field w-full"
+                    placeholder="https://example.com/qr-code.png"
+                    value={form.paymentQRCodeUrl || ''}
+                    onChange={e => setForm({ ...form, paymentQRCodeUrl: e.target.value })}
+                  />
+                  {form.paymentQRCodeUrl && (
+                    <img src={form.paymentQRCodeUrl} alt="QR preview" className="mt-2 h-24 w-24 object-contain border border-gray-200 rounded-lg" onError={e => { e.target.style.display = 'none'; }} />
+                  )}
+                  {form.paymentQRCode?.startsWith('http') && !form.paymentQRCodeUrl && <p className="text-xs text-green-600 mt-1">✓ QR code URL already set</p>}
+                </>
+              )}
             </div>
           </div>
 

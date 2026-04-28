@@ -100,6 +100,8 @@ export default function RegisterPage() {
   const [maxSingleEventRegistrations, setMaxSingleEventRegistrations] = useState(2);
   const [checkingTeamName, setCheckingTeamName] = useState(false);
   const [teamNameAvailability, setTeamNameAvailability] = useState({ available: null, message: '' });
+  const [duplicateUucmsIndices, setDuplicateUucmsIndices] = useState(new Set());
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     Promise.all([API.get('/events'), API.get('/settings')])
@@ -157,6 +159,10 @@ export default function RegisterPage() {
     }
     
     setPlayers(prev => prev.map((player, index) => index === idx ? { ...player, ...playerUpdate } : player));
+
+    if (field === 'uucms') {
+      setDuplicateUucmsIndices(prev => { const next = new Set(prev); next.delete(idx); return next; });
+    }
 
     // Check player's registration status for single events
     if (field === 'uucms' && selectedEvent?.type === 'single' && finalValue) {
@@ -231,7 +237,6 @@ export default function RegisterPage() {
         params: { teamName: normalizedTeamName }
       })
         .then((res) => {
-          setTeamName(normalizedTeamName);
           setTeamNameAvailability({
             available: Boolean(res.data?.available),
             message: res.data?.available
@@ -246,7 +251,7 @@ export default function RegisterPage() {
           });
         })
         .finally(() => setCheckingTeamName(false));
-    }, 300);
+    }, 700);
 
     return () => clearTimeout(timeoutId);
   }, [teamName, selectedEvent]);
@@ -270,6 +275,22 @@ export default function RegisterPage() {
       if (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role)) {
         return toast.error(t('fillAllFields').replace('{number}', i + 1));
       }
+    }
+
+    // Detect duplicate UUCMS within this registration
+    const uucmsSeen = new Map();
+    players.forEach((p, i) => {
+      const val = p.uucms.trim().toUpperCase();
+      if (!val) return;
+      if (!uucmsSeen.has(val)) uucmsSeen.set(val, []);
+      uucmsSeen.get(val).push(i);
+    });
+    const dupIndices = new Set();
+    uucmsSeen.forEach((indices) => { if (indices.length > 1) indices.forEach(i => dupIndices.add(i)); });
+    if (dupIndices.size > 0) {
+      setDuplicateUucmsIndices(dupIndices);
+      setExpandedPlayer([...dupIndices][0]);
+      return toast.error(`Duplicate UUCMS: Players ${[...dupIndices].map(i => i + 1).join(', ')} have the same UUCMS number`);
     }
 
     const mainPlayers = players.filter(player => !player.isSubstitute);
@@ -310,6 +331,9 @@ export default function RegisterPage() {
       });
       setSuccess(res.data);
       toast.success(t('registeredSuccessfully'));
+      const upiLink = res.data?.eventId?.upiPaymentLink || selectedEvent?.upiPaymentLink;
+      const fee = res.data?.eventId?.registrationFee ?? selectedEvent?.registrationFee;
+      if (upiLink && fee > 0) setShowPaymentModal(true);
     } catch (err) {
       toast.error(err.response?.data?.message || t('registrationFailed'));
     } finally {
@@ -390,8 +414,44 @@ export default function RegisterPage() {
 
   if (success) {
     const source = getRegistrationQrSource(success);
+    const upiLink = success?.eventId?.upiPaymentLink;
+    const fee = success?.eventId?.registrationFee;
+
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
+
+        {/* UPI Payment Modal — shown immediately after registration */}
+        {showPaymentModal && upiLink && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center">
+              <div className="text-5xl mb-3">💸</div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">Complete Payment</h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-1">Registration successful!</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-5">Tap the button below to pay via your UPI app</p>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 mb-5">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Amount to pay</p>
+                <p className="text-4xl font-black text-blue-600 dark:text-blue-400">₹{fee}</p>
+              </div>
+
+              <a
+                href={upiLink}
+                onClick={() => setTimeout(() => setShowPaymentModal(false), 500)}
+                className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 py-4 rounded-xl text-base font-bold transition-colors shadow-lg mb-3"
+              >
+                <span>💳</span> Open UPI App & Pay ₹{fee}
+              </a>
+
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 py-2"
+              >
+                I'll pay later
+              </button>
+            </div>
+          </div>
+        )}
+
         <Navbar />
         <div className="max-w-4xl mx-auto px-4 py-12">
           <div className="bg-white dark:bg-dark-card rounded-2xl p-8 shadow-sm border border-gray-100 dark:border-dark-border text-center">
@@ -408,29 +468,26 @@ export default function RegisterPage() {
             {success.paymentStatus === 'pending' && (
               <div className="mb-6 space-y-4">
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 rounded-xl">
-                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-300 mb-2">⏳ {t('paymentPending')}</p>
+                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-300 mb-1">⏳ {t('paymentPending')}</p>
                   <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-4">{t('paymentPendingMsg')}</p>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {success.eventId?.paymentQRCode && (
-                      <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-yellow-200 dark:border-gray-700">
-                        <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-300 mb-2">📱 {t('scanQRCode')}</p>
-                        <img src={success.eventId.paymentQRCode} alt="Payment QR Code" className="w-full h-32 object-contain" />
-                      </div>
-                    )}
-                    {success.eventId?.upiPaymentLink && (
-                      <div className="flex flex-col justify-center">
-                        <a
-                          href={success.eventId.upiPaymentLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block w-full bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-lg text-sm font-semibold transition-colors"
-                        >
-                          💳 {t('paymentViUPI').replace('{fee}', success.eventId.registrationFee)}
-                        </a>
-                      </div>
-                    )}
-                  </div>
+
+                  {success.eventId?.upiPaymentLink && (
+                    <a
+                      href={success.eventId.upiPaymentLink}
+                      className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 py-3.5 rounded-xl text-sm font-bold transition-colors mb-3 shadow-md"
+                    >
+                      <span className="text-lg">💸</span>
+                      Pay ₹{success.eventId.registrationFee} via UPI
+                      <span className="text-xs font-normal opacity-80 ml-1">(opens UPI app)</span>
+                    </a>
+                  )}
+
+                  {success.eventId?.paymentQRCode && (
+                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-yellow-200 dark:border-gray-700">
+                      <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-300 mb-2">📱 {t('scanQRCode')}</p>
+                      <img src={success.eventId.paymentQRCode} alt="Payment QR Code" className="w-full h-40 object-contain" />
+                    </div>
+                  )}
 
                   {!success.eventId?.paymentQRCode && !success.eventId?.upiPaymentLink && (
                     <p className="text-xs text-yellow-700 dark:text-yellow-400">Fee: ₹{success.eventId?.registrationFee || 'N/A'}</p>
@@ -663,11 +720,17 @@ export default function RegisterPage() {
                     <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-transform group-hover:scale-150 duration-700"></div>
                     <label className="block text-sm font-semibold text-gray-900 dark:text-gray-200 mb-2 relative z-10">Team Name <span className="text-red-500">*</span></label>
                     <input
-                      className={`input-field w-full text-base dark:bg-gray-800/80 dark:border-gray-700 dark:text-white relative z-10 transition-colors focus:bg-white ${submitAttempted && !teamName ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                      className={`input-field w-full text-base dark:bg-gray-800/80 dark:border-gray-700 dark:text-white relative z-10 transition-colors focus:bg-white ${
+                        (submitAttempted && !teamName) || teamNameAvailability.available === false
+                          ? 'border-red-400 focus:ring-red-500/20 bg-red-50/30 dark:bg-red-900/10'
+                          : teamNameAvailability.available === true
+                          ? 'border-green-400 focus:ring-green-500/20'
+                          : ''
+                      }`}
                       placeholder="e.g. The Champions"
                       value={teamName}
                       onChange={e => {
-                        setTeamName(normalizeTeamName(e.target.value));
+                        setTeamName(e.target.value);
                         setTeamNameAvailability({ available: null, message: '' });
                       }}
                     />
@@ -691,7 +754,8 @@ export default function RegisterPage() {
                 <div className="space-y-3">
                   {players.map((player, idx) => {
                     const isExpanded = expandedPlayer === idx || selectedEvent.type !== 'team';
-                    const hasError = submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role));
+                    const hasDupUucms = duplicateUucmsIndices.has(idx);
+                    const hasError = (submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role))) || hasDupUucms;
                     return (
                     <div
                       key={idx}
@@ -722,7 +786,8 @@ export default function RegisterPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
-                           {hasError && !isExpanded && <span className="text-xs text-red-500 font-semibold bg-red-50 px-2 py-1 rounded-full uppercase tracking-wider">Incomplete</span>}
+                           {hasDupUucms && !isExpanded && <span className="text-xs text-red-500 font-semibold bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full uppercase tracking-wider">Duplicate UUCMS</span>}
+                           {!hasDupUucms && hasError && !isExpanded && <span className="text-xs text-red-500 font-semibold bg-red-50 px-2 py-1 rounded-full uppercase tracking-wider">Incomplete</span>}
                            {player.name && player.uucms && player.phone && !hasError && !isExpanded && <CheckCircle2 className="text-green-500" size={22} />}
                            {selectedEvent.type === 'team' && (isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />)}
                         </div>
@@ -770,13 +835,20 @@ export default function RegisterPage() {
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">UUCMS No. <span className="text-red-500">*</span></label>
                             <input
-                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white font-mono ${submitAttempted && !player.uucms ? 'border-red-400 focus:ring-red-500/20' : ''}`}
+                              className={`input-field w-full text-sm dark:bg-gray-800/50 dark:border-gray-700 dark:text-white transition-colors focus:bg-white font-mono ${
+                                hasDupUucms
+                                  ? 'border-red-400 focus:ring-red-500/20 bg-red-50/40 dark:bg-red-900/10'
+                                  : submitAttempted && !player.uucms
+                                  ? 'border-red-400 focus:ring-red-500/20'
+                                  : ''
+                              }`}
                               placeholder="e.g. U02CG23S0001 "
                               value={player.uucms}
                               maxLength="12"
                               onChange={e => updatePlayer(idx, 'uucms', e.target.value)}
                             />
-                            {submitAttempted && !player.uucms && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">UUCMS is required</p>}
+                            {hasDupUucms && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">This UUCMS is used by another player in this registration</p>}
+                            {!hasDupUucms && submitAttempted && !player.uucms && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">UUCMS is required</p>}
                           </div>
                           <div>
                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Phone <span className="text-red-500">*</span></label>

@@ -277,7 +277,17 @@ export default function CricketMatchesPage() {
             <div className="space-y-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">Best Batsmen</p>
-                {leaderboard.topBatsmen.length === 0 ? (
+                {loading ? (
+                  <div className="space-y-1.5">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center">
+                        <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                        <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${60 + i * 10}%` }} />
+                        <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                ) : leaderboard.topBatsmen.length === 0 ? (
                   <p className="text-xs text-gray-400">No completed match data yet</p>
                 ) : (
                   <div className="space-y-1.5">
@@ -303,7 +313,17 @@ export default function CricketMatchesPage() {
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-green-600 dark:text-green-400 mb-2">Best Bowlers</p>
-                {leaderboard.topBowlers.length === 0 ? (
+                {loading ? (
+                  <div className="space-y-1.5">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center">
+                        <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                        <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${55 + i * 12}%` }} />
+                        <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+                ) : leaderboard.topBowlers.length === 0 ? (
                   <p className="text-xs text-gray-400">No completed match data yet</p>
                 ) : (
                   <div className="space-y-1.5">
