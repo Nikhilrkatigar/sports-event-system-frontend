@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/public/Navbar';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { useTranslation } from '../../hooks/useTranslation';
 import { CardSkeleton } from '../../components/Skeletons';
 import { canRegisterForEvent, formatEventDeadline, getEventStatusMeta, PUBLIC_EVENT_STATUSES } from '../../utils/events';
@@ -52,7 +52,7 @@ export default function EventsPage() {
                 <div key={event._id} className={`bg-white dark:bg-dark-card rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all transform hover:scale-105 border border-gray-100 dark:border-dark-border flex flex-col animate-stagger-${(idx % 6) + 1}`}>
                   <div className="relative overflow-hidden h-48 bg-gray-100 dark:bg-gray-800 group">
                     {event.image ? (
-                      <img src={event.image} alt={event.title} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300" />
+                      <img src={getImageUrl(event.image)} alt={event.title} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-blue-500 to-cyan-600 dark:from-blue-900/40 dark:to-cyan-900/40 flex items-center justify-center text-white dark:text-blue-400 text-2xl font-bold group-hover:from-blue-600 group-hover:to-cyan-700 transition-all duration-300">
                         <TranslatedText text={event.title} />

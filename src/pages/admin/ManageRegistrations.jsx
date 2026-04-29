@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { TableRowSkeleton } from '../../components/Skeletons';
 import { useAuth } from '../../context/AuthContext';
@@ -848,7 +848,7 @@ export default function ManageRegistrations() {
                                       className="w-full lg:w-44 h-28 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden hover:border-blue-300"
                                     >
                                       <img
-                                        src={reg.paymentScreenshot}
+                                        src={getImageUrl(reg.paymentScreenshot)}
                                         alt="Payment proof"
                                         className="w-full h-full object-cover"
                                       />

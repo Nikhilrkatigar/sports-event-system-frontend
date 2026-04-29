@@ -506,21 +506,32 @@ export default function CricketLivePage() {
             {currentInnings?.bowlerStats?.length > 1 && (
               <div className="bg-white dark:bg-dark-card rounded-xl p-4 border border-gray-100 dark:border-dark-border shadow-sm">
                 <div className="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Bowling Attack</div>
-                <div className="space-y-2">
-                  {currentInnings.bowlerStats.map((b, i) => (
-                    <div key={i} className="flex items-center justify-between py-2 px-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded transition">
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="text-xs font-bold text-gray-400 w-5">{b.bowlingOrder}</span>
-                        <span className="font-medium text-gray-900 dark:text-white text-sm">{b.playerName}</span>
-                      </div>
-                      <div className="flex gap-3 text-sm">
-                        <span className="w-10 text-center text-gray-500 text-xs">O {b.oversBowled}</span>
-                        <span className="w-10 text-center text-gray-500 text-xs">R {b.runsConceded}</span>
-                        <span className="w-10 text-center font-bold text-green-600 dark:text-green-400 text-xs">W {b.wickets}</span>
-                        <span className="w-14 text-center text-gray-500 text-xs hidden sm:block">ER {b.economy}</span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-xs text-gray-400 border-b border-gray-100 dark:border-gray-800">
+                      <th className="text-left pb-2 font-medium">Bowler</th>
+                      <th className="text-center pb-2 font-medium">O</th>
+                      <th className="text-center pb-2 font-medium">M</th>
+                      <th className="text-center pb-2 font-medium">R</th>
+                      <th className="text-center pb-2 font-medium">W</th>
+                      <th className="text-center pb-2 font-medium">ER</th>
+                    </tr></thead>
+                    <tbody>
+                      {currentInnings.bowlerStats.map((b, i) => (
+                        <tr key={i} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                          <td className="py-2 font-medium text-gray-900 dark:text-white">
+                            <span className="text-xs font-bold text-gray-400 mr-2">{b.bowlingOrder}</span>
+                            {b.playerName}
+                          </td>
+                          <td className="text-center text-gray-700 dark:text-gray-300">{b.oversBowled}</td>
+                          <td className="text-center text-gray-500">{b.maidens}</td>
+                          <td className="text-center text-gray-700 dark:text-gray-300">{b.runsConceded}</td>
+                          <td className="text-center font-bold text-green-600 dark:text-green-400">{b.wickets}</td>
+                          <td className="text-center font-medium text-gray-700 dark:text-gray-300">{b.economy}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

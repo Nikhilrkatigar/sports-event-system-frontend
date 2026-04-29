@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 
 const DEFAULT_DEPARTMENTS = ['BCA', 'BBA', 'B.Com'];
 
@@ -172,7 +172,7 @@ export default function SiteSettings() {
             ) : (
               <input type="file" accept="image/*" className="input-field" onChange={e => setFile(e.target.files[0])} />
             )}
-            {form.collegeLogo && mode === 'url' && <img src={form.collegeLogo} alt="logo preview" className="h-16 w-16 rounded-full object-cover mt-2 border" />}
+            {form.collegeLogo && mode === 'url' && <img src={getImageUrl(form.collegeLogo)} alt="logo preview" className="h-16 w-16 rounded-full object-cover mt-2 border" />}
           </div>
         </div>
 

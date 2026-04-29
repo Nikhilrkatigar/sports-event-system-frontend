@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { CardSkeleton } from '../../components/Skeletons';
 import { EVENT_STATUS_OPTIONS, formatEventDeadline, getEventStatusMeta } from '../../utils/events';
@@ -577,7 +577,7 @@ export default function ManageEvents() {
             const statusMeta = getEventStatusMeta(event);
             return (
               <div key={event._id} className="card flex flex-col hover:shadow-lg transition-all duration-300 transform hover:scale-105 group">
-                {event.image && <img src={event.image} alt={event.title} className="w-full h-36 object-contain bg-gray-100 dark:bg-gray-800 p-2 rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300" />}
+                {event.image && <img src={getImageUrl(event.image)} alt={event.title} className="w-full h-36 object-contain bg-gray-100 dark:bg-gray-800 p-2 rounded-lg mb-3 group-hover:scale-110 transition-transform duration-300" />}
                 <div className="flex items-start justify-between mb-2 gap-3">
                   <div>
                     <h3 className="font-semibold text-gray-900">{event.title}</h3>

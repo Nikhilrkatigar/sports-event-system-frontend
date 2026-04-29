@@ -74,4 +74,15 @@ API.interceptors.response.use(
   (error) => Promise.reject(error)
 );
 
+const GRIDFS_ID_REGEX = /^[a-f\d]{24}$/i;
+
+export const getImageUrl = (value) => {
+  if (!value) return '';
+  if (value.startsWith('data:') || value.startsWith('http') || value.startsWith('/')) return value;
+  if (GRIDFS_ID_REGEX.test(value)) {
+    return mediaOrigin ? `${mediaOrigin}/api/images/${value}` : `/api/images/${value}`;
+  }
+  return value;
+};
+
 export default API;

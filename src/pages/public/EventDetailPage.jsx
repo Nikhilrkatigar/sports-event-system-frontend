@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Navbar from '../../components/public/Navbar';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { ImageSkeleton, TextSkeleton } from '../../components/Skeletons';
 import { canRegisterForEvent, formatEventDeadline, getEventStatusMeta } from '../../utils/events';
 import LikeButton from '../../components/LikeButton';
@@ -65,7 +65,7 @@ export default function EventDetailPage() {
         <Link to="/events" className="text-blue-600 dark:text-blue-400 hover:underline text-sm mb-6 inline-block">Back to Events</Link>
 
         <div className="bg-white dark:bg-dark-card rounded-2xl overflow-hidden shadow-sm border border-gray-100 dark:border-dark-border">
-          {event.image && <img src={event.image} alt={event.title} className="w-full h-64 object-contain bg-gray-100 dark:bg-gray-800 p-3" />}
+          {event.image && <img src={getImageUrl(event.image)} alt={event.title} className="w-full h-64 object-contain bg-gray-100 dark:bg-gray-800 p-3" />}
           <div className="p-8">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <span className={`text-sm font-semibold px-3 py-1 rounded-full ${event.type === 'team' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300' : 'bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300'}`}>

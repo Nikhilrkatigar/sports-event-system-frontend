@@ -44,6 +44,9 @@ export default function CricketScoringPanel() {
   const [wicketFielder, setWicketFielder] = useState('');
   const [wicketBatsman, setWicketBatsman] = useState('');
   const [newBatsmanId, setNewBatsmanId] = useState('');
+  const [wicketIsWide, setWicketIsWide] = useState(false);
+  const [wicketIsNoBall, setWicketIsNoBall] = useState(false);
+  const [wicketRunsScored, setWicketRunsScored] = useState(0);
 
   // Toss form
   const [tossWonBy, setTossWonBy] = useState('teamA');
@@ -273,8 +276,22 @@ export default function CricketScoringPanel() {
       overthrowRuns: Number(overthrowOnlyRuns || 0)
     });
   };
-  const handlePenaltyRuns = (runs = 5) => {
-    return recordBall({ isPenalty: true, penaltyRuns: runs });
+  const handlePenaltyRuns = (runs) => {
+    const parsedRuns = Math.max(0, Number(runs || 0));
+    return recordBall({ isPenalty: true, penaltyRuns: parsedRuns });
+  };
+
+  // Allowed dismissal types change depending on wide / no-ball / free-hit context
+  const getFilteredDismissalTypes = () => {
+    if (wicketIsWide) {
+      // Wide: only run_out, stumped, hit_wicket, obstructing_field allowed
+      return DISMISSAL_TYPES.filter(d => ['run_out', 'stumped', 'hit_wicket', 'obstructing_field', 'retired_hurt', 'retired_out'].includes(d.value));
+    }
+    if (wicketIsNoBall || match?.isNextBallFreeHit) {
+      // No-ball / Free Hit: only run_out, obstructing_field allowed
+      return DISMISSAL_TYPES.filter(d => ['run_out', 'obstructing_field', 'retired_hurt', 'retired_out'].includes(d.value));
+    }
+    return DISMISSAL_TYPES;
   };
 
   const handleWicket = async () => {
@@ -291,8 +308,10 @@ export default function CricketScoringPanel() {
     setSending(true);
     try {
       await API.post(`/cricket/matches/${matchId}/ball`, {
-        runsScored: 0,
+        runsScored: wicketRunsScored,
         isWicket: true,
+        isWide: wicketIsWide,
+        isNoBall: wicketIsNoBall,
         wicketType,
         wicketBatsman: wicketBatsman || striker?.playerName || '',
         wicketFielder,
@@ -303,6 +322,9 @@ export default function CricketScoringPanel() {
       setWicketFielder('');
       setWicketBatsman('');
       setNewBatsmanId('');
+      setWicketIsWide(false);
+      setWicketIsNoBall(false);
+      setWicketRunsScored(0);
       
       // Auto-end innings if all out
       if (isAllOut) {
@@ -703,14 +725,14 @@ export default function CricketScoringPanel() {
           <button onClick={() => handleLegBye()} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-all active:scale-95 disabled:opacity-50">
             Leg Bye
           </button>
-          <button onClick={() => setShowPenaltyModal(true)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-all active:scale-95 disabled:opacity-50">
-            Penalty 5
+          <button onClick={() => { setPenaltyRuns(5); setShowPenaltyModal(true); }} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-all active:scale-95 disabled:opacity-50">
+            Penalty
           </button>
         </div>
 
         {/* Actions */}
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <button onClick={() => { setShowWicketModal(true); setWicketBatsman(striker?.playerName || ''); }} disabled={sending}
+          <button onClick={() => { setShowWicketModal(true); setWicketBatsman(striker?.playerName || ''); setWicketIsWide(false); setWicketIsNoBall(false); setWicketRunsScored(0); setWicketType('bowled'); }} disabled={sending}
             className="py-4 rounded-xl text-base font-bold bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-200 dark:shadow-red-900/50 transition-all active:scale-95 disabled:opacity-50">
             🔴 WICKET
           </button>
@@ -753,10 +775,53 @@ export default function CricketScoringPanel() {
           <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-red-600 dark:text-red-400 mb-4">🔴 Wicket</h3>
             <div className="space-y-4">
+              {/* Wide / No Ball context toggles */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Delivery Type</label>
+                <div className="flex gap-2">
+                  <button onClick={() => { setWicketIsWide(!wicketIsWide); if (!wicketIsWide) { setWicketIsNoBall(false); setWicketType('run_out'); } else { setWicketType('bowled'); } }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${wicketIsWide ? 'bg-yellow-500 text-white ring-2 ring-yellow-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
+                    🌐 Wide
+                  </button>
+                  <button onClick={() => { setWicketIsNoBall(!wicketIsNoBall); if (!wicketIsNoBall) { setWicketIsWide(false); setWicketType('run_out'); } else { setWicketType('bowled'); } }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${wicketIsNoBall ? 'bg-yellow-500 text-white ring-2 ring-yellow-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
+                    ⚡ No Ball
+                  </button>
+                  <button onClick={() => { setWicketIsWide(false); setWicketIsNoBall(false); setWicketType('bowled'); }}
+                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${!wicketIsWide && !wicketIsNoBall ? 'bg-blue-500 text-white ring-2 ring-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}>
+                    Normal
+                  </button>
+                </div>
+                {(wicketIsWide || wicketIsNoBall || match?.isNextBallFreeHit) && (
+                  <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                    {wicketIsWide && '⚠ Wide: only Stumped, Run Out, Hit Wicket, Obstructing Field allowed'}
+                    {wicketIsNoBall && '⚠ No Ball: only Run Out, Obstructing Field allowed'}
+                    {!wicketIsWide && !wicketIsNoBall && match?.isNextBallFreeHit && '⚠ Free Hit: only Run Out, Obstructing Field allowed'}
+                  </p>
+                )}
+              </div>
+
+              {/* Runs scored on this delivery (e.g. runs completed before run-out) */}
+              {(wicketType === 'run_out' || wicketIsWide || wicketIsNoBall) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    {wicketType === 'run_out' ? 'Runs completed before run-out' : 'Runs scored'}
+                  </label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[0, 1, 2, 3, 4].map(r => (
+                      <button key={r} onClick={() => setWicketRunsScored(r)}
+                        className={`py-2 rounded-lg font-bold text-sm transition-all ${wicketRunsScored === r ? 'bg-green-500 text-white scale-105' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'}`}>
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Dismissal Type</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {DISMISSAL_TYPES.map(d => (
+                  {getFilteredDismissalTypes().map(d => (
                     <button key={d.value} onClick={() => setWicketType(d.value)}
                       className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${wicketType === d.value ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                       {d.label}
@@ -928,14 +993,22 @@ export default function CricketScoringPanel() {
 
       {/* ── PENALTY RUNS MODAL ── */}
       {showPenaltyModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowPenaltyModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowPenaltyModal(false); setPenaltyRuns(5); }}>
           <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-red-700 dark:text-red-300 mb-2">⚠ Penalty Runs</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Award 5 penalty runs to the batting side.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">How many penalty runs should be awarded?</p>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={penaltyRuns}
+              onChange={e => setPenaltyRuns(Math.max(0, Number(e.target.value) || 0))}
+              className="w-full px-4 py-3 border border-red-200 dark:border-red-800 rounded-xl bg-white dark:bg-gray-800 dark:text-white mb-4 focus:ring-2 focus:ring-red-500 outline-none"
+            />
             <div className="flex gap-3">
-              <button onClick={() => setShowPenaltyModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
-              <button onClick={() => { handlePenaltyRuns(penaltyRuns); setShowPenaltyModal(false); }} disabled={sending} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50">
-                Confirm (5)
+              <button onClick={() => { setShowPenaltyModal(false); setPenaltyRuns(5); }} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+              <button onClick={() => { handlePenaltyRuns(penaltyRuns); setShowPenaltyModal(false); setPenaltyRuns(5); }} disabled={sending} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 disabled:opacity-50">
+                Confirm ({penaltyRuns})
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/public/Navbar';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { useTranslation } from '../../hooks/useTranslation';
 import { CardSkeleton, ImageSkeleton, TableRowSkeleton } from '../../components/Skeletons';
 import { canRegisterForEvent, getEventStatusMeta, PUBLIC_EVENT_STATUSES } from '../../utils/events';
@@ -75,7 +75,7 @@ export default function HomePage() {
 
       <section className="bg-gradient-to-br from-blue-900 via-sky-700 to-cyan-700 animate-pan-gradient text-white py-24 px-4">
         <div className="max-w-4xl mx-auto text-center">
-          {settings.collegeLogo && <img src={settings.collegeLogo} alt="logo" className="w-24 h-24 rounded-full mx-auto mb-6 border-4 border-white/30 object-cover animate-float" />}
+          {settings.collegeLogo && <img src={getImageUrl(settings.collegeLogo)} alt="logo" className="w-24 h-24 rounded-full mx-auto mb-6 border-4 border-white/30 object-cover animate-float" />}
           <div className="inline-block bg-orange-500 text-white text-xs font-semibold px-3 py-1 rounded-full mb-4 uppercase tracking-wider animate-slide-down">{t('sportsEvent')}</div>
           <h1 className="text-5xl md:text-6xl font-extrabold mb-4 animate-slide-up">{settings.eventName || t('annualSportsDay')}</h1>
           <p className="text-xl text-blue-100 mb-2 animate-slide-up" style={{animationDelay: '0.1s'}}>{settings.collegeName || 'Global College'}</p>
@@ -158,7 +158,7 @@ export default function HomePage() {
                 <Link key={event._id} to={`/events/${event._id}`} className={`bg-white/80 dark:bg-dark-card/80 backdrop-blur-md rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 dark:border-dark-border group animate-stagger-${idx + 1}`}>
                   <div className="relative overflow-hidden h-44 bg-gray-100 dark:bg-gray-800">
                     {event.image ? (
-                      <img src={event.image} alt={event.title} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300" />
+                      <img src={getImageUrl(event.image)} alt={event.title} className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform duration-300" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/40 dark:to-cyan-900/40 flex items-center justify-center text-2xl font-bold text-blue-700 dark:text-blue-400 group-hover:from-blue-200 group-hover:to-cyan-200 transition-colors">{event.title}</div>
                     )}
@@ -345,7 +345,7 @@ export default function HomePage() {
               ) : (
                 toArray(gallery).map((item, idx) => (
                   <div key={item._id} onClick={() => setLightboxIndex(idx)} className={`relative group overflow-hidden rounded-xl aspect-square shadow-md hover:shadow-xl transition-all transform hover:scale-105 cursor-pointer animate-stagger-${idx + 1}`}>
-                    <img src={item.image} alt={item.caption} className="w-full h-full object-contain bg-gray-100 p-2 group-hover:scale-125 transition-transform duration-500" />
+                    <img src={getImageUrl(item.image)} alt={item.caption} className="w-full h-full object-contain bg-gray-100 p-2 group-hover:scale-125 transition-transform duration-500" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
                       {item.caption && (
                         <p className="text-white text-sm font-semibold translate-y-4 group-hover:translate-y-0 transition-transform duration-300">{item.caption}</p>
@@ -379,7 +379,7 @@ export default function HomePage() {
             </button>
           )}
 
-          <img src={gallery[lightboxIndex].image} alt={gallery[lightboxIndex].caption || 'Gallery Image'} className="max-w-[100vw] max-h-[90vh] object-contain px-12 md:px-24" onClick={(e) => e.stopPropagation()} />
+          <img src={getImageUrl(gallery[lightboxIndex].image)} alt={gallery[lightboxIndex].caption || 'Gallery Image'} className="max-w-[100vw] max-h-[90vh] object-contain px-12 md:px-24" onClick={(e) => e.stopPropagation()} />
           
           {gallery.length > 1 && (
             <button 

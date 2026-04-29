@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { useConfirm } from '../../hooks/useConfirm';
 import { ImageSkeleton } from '../../components/Skeletons';
 
@@ -106,7 +106,7 @@ export default function ManageGallery() {
         ) : (
           gallery.map(item => (
             <div key={item._id} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-lg transition-all duration-300 transform hover:scale-105 cursor-pointer">
-              <img src={item.image} alt={item.caption} className="w-full aspect-square object-contain bg-gray-100 dark:bg-gray-800 p-2" />
+              <img src={getImageUrl(item.image)} alt={item.caption} className="w-full aspect-square object-contain bg-gray-100 dark:bg-gray-800 p-2" />
               {item.caption && <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2 truncate">{item.caption}</div>}
               <button onClick={() => handleDelete(item._id)} className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white w-7 h-7 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center transform hover:scale-110">✕</button>
             </div>

@@ -5,7 +5,7 @@ import QRCode from 'react-qr-code';
 import Navbar from '../../components/public/Navbar';
 import TermsModal from '../../components/public/TermsModal';
 import TranslatedText from '../../components/TranslatedText';
-import API from '../../utils/api';
+import API, { getImageUrl } from '../../utils/api';
 import { useTranslation } from '../../hooks/useTranslation';
 import { FormSkeleton } from '../../components/Skeletons';
 import {
@@ -485,7 +485,7 @@ export default function RegisterPage() {
                   {success.eventId?.paymentQRCode && (
                     <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-yellow-200 dark:border-gray-700">
                       <p className="text-xs font-semibold text-yellow-900 dark:text-yellow-300 mb-2">📱 {t('scanQRCode')}</p>
-                      <img src={success.eventId.paymentQRCode} alt="Payment QR Code" className="w-full h-40 object-contain" />
+                      <img src={getImageUrl(success.eventId.paymentQRCode)} alt="Payment QR Code" className="w-full h-40 object-contain" />
                     </div>
                   )}
 
