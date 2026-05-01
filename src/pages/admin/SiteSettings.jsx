@@ -11,7 +11,8 @@ export default function SiteSettings() {
     termsAndConditions: '',
     maxSingleEventRegistrations: 2,
     maxTeamEventRegistrations: 999,
-    maxPlayersPerTeam: 5
+    maxPlayersPerTeam: 5,
+    allowSubstitutes: true
   });
   const [file, setFile] = useState(null);
   const [mode, setMode] = useState('url');
@@ -27,7 +28,8 @@ export default function SiteSettings() {
         collegeLogo: d.collegeLogo || '',
         announcement: d.announcement || '',
         termsAndConditions: d.termsAndConditions || '',
-        departments: departments.join('\n')
+        departments: departments.join('\n'),
+        allowSubstitutes: d.allowSubstitutes !== undefined ? d.allowSubstitutes : true
       });
     });
   }, []);
@@ -158,6 +160,25 @@ export default function SiteSettings() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Info only (per-event team size is configured separately)</p>
               </div>
+            </div>
+          </div>
+
+          <div className="border-t pt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-3"><strong>Registration Features</strong></label>
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Allow Substitute Players</label>
+                <p className="text-xs text-gray-500 mt-1">Enable or disable the ability to add substitute players during team event registration</p>
+              </div>
+              <label className="flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={form.allowSubstitutes} 
+                  onChange={e => setForm({ ...form, allowSubstitutes: e.target.checked })}
+                  className="w-5 h-5 rounded"
+                />
+                <span className="ml-2 text-sm font-medium">{form.allowSubstitutes ? 'Enabled' : 'Disabled'}</span>
+              </label>
             </div>
           </div>
 

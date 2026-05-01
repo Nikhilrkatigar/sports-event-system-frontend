@@ -98,6 +98,7 @@ export default function RegisterPage() {
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [maxPlayersPerTeam, setMaxPlayersPerTeam] = useState(5);
   const [maxSingleEventRegistrations, setMaxSingleEventRegistrations] = useState(2);
+  const [allowSubstitutes, setAllowSubstitutes] = useState(true);
   const [checkingTeamName, setCheckingTeamName] = useState(false);
   const [teamNameAvailability, setTeamNameAvailability] = useState({ available: null, message: '' });
   const [duplicateUucmsIndices, setDuplicateUucmsIndices] = useState(new Set());
@@ -114,6 +115,9 @@ export default function RegisterPage() {
         // Set registration limits from settings
         if (settingsRes.data?.maxPlayersPerTeam) setMaxPlayersPerTeam(settingsRes.data.maxPlayersPerTeam);
         if (settingsRes.data?.maxSingleEventRegistrations) setMaxSingleEventRegistrations(settingsRes.data.maxSingleEventRegistrations);
+        
+        // Set substitute permission from settings
+        if (settingsRes.data?.allowSubstitutes !== undefined) setAllowSubstitutes(settingsRes.data.allowSubstitutes);
         
         // Set terms and conditions from settings
         const terms = settingsRes.data?.termsAndConditions || 'By registering for this event, you agree to abide by all rules and regulations.';
@@ -270,20 +274,33 @@ export default function RegisterPage() {
       return toast.error(teamNameAvailability.message || 'Team name is already taken');
     }
 
-    for (let i = 0; i < players.length; i++) {
-      const player = players[i];
+    // When female shortfall is allowed, filter out completely empty player slots
+    const isShortfallAllowed = selectedEvent.type === 'team' && selectedEvent.allowFemaleRequirementShortfall;
+    let filteredPlayers = players;
+    if (isShortfallAllowed) {
+      filteredPlayers = players.filter(player => {
+        // Keep all substitutes that have data, and all non-empty main players
+        if (player.isSubstitute) return player.name || player.uucms;
+        const isEmpty = !player.name && !player.uucms && !player.phone && !player.gender;
+        return !isEmpty;
+      });
+    }
+
+    for (let i = 0; i < filteredPlayers.length; i++) {
+      const player = filteredPlayers[i];
+      const originalIndex = players.indexOf(player);
       if (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role)) {
-        return toast.error(t('fillAllFields').replace('{number}', i + 1));
+        return toast.error(t('fillAllFields').replace('{number}', originalIndex + 1));
       }
     }
 
     // Detect duplicate UUCMS within this registration
     const uucmsSeen = new Map();
-    players.forEach((p, i) => {
+    filteredPlayers.forEach((p, i) => {
       const val = p.uucms.trim().toUpperCase();
       if (!val) return;
       if (!uucmsSeen.has(val)) uucmsSeen.set(val, []);
-      uucmsSeen.get(val).push(i);
+      uucmsSeen.get(val).push(players.indexOf(p));
     });
     const dupIndices = new Set();
     uucmsSeen.forEach((indices) => { if (indices.length > 1) indices.forEach(i => dupIndices.add(i)); });
@@ -293,10 +310,22 @@ export default function RegisterPage() {
       return toast.error(`Duplicate UUCMS: Players ${[...dupIndices].map(i => i + 1).join(', ')} have the same UUCMS number`);
     }
 
-    const mainPlayers = players.filter(player => !player.isSubstitute);
+    const mainPlayers = filteredPlayers.filter(player => !player.isSubstitute);
     if (selectedEvent.type === 'team') {
-      if (mainPlayers.length !== Number(selectedEvent.teamSize || 1)) {
-        return toast.error(t('exactlyPlayersRequired').replace('{count}', selectedEvent.teamSize));
+      const requiredSize = Number(selectedEvent.teamSize || 1);
+      if (isShortfallAllowed) {
+        // With flexible female requirement, allow fewer players but at least maleRequired
+        const minPlayers = Math.max(1, Number(selectedEvent.maleRequired || 0));
+        if (mainPlayers.length < minPlayers) {
+          return toast.error(`At least ${minPlayers} main players are required (${selectedEvent.maleRequired} males)`);
+        }
+        if (mainPlayers.length > requiredSize) {
+          return toast.error(`Maximum ${requiredSize} main players are allowed for this event`);
+        }
+      } else {
+        if (mainPlayers.length !== requiredSize) {
+          return toast.error(t('exactlyPlayersRequired').replace('{count}', selectedEvent.teamSize));
+        }
       }
       const leaderCount = mainPlayers.filter(player => player.isTeamLeader).length;
       if (leaderCount !== 1) return toast.error(t('chooseOneTeamLeader'));
@@ -326,7 +355,7 @@ export default function RegisterPage() {
     try {
     const res = await API.post('/registrations', {
         eventId: selectedEvent._id,
-        players,
+        players: filteredPlayers,
         teamName: selectedEvent.type === 'team' ? normalizedTeamName : null
       });
       setSuccess(res.data);
@@ -664,7 +693,7 @@ export default function RegisterPage() {
                       )}
                       {selectedEvent.femaleRequired > 0 && (
                         <div className="flex items-center gap-2">
-                          <span>♀ {t('females')}: {genderComposition.femaleCount}/{selectedEvent.femaleRequired}</span>
+                          <span>♀ {t('females')}: {genderComposition.femaleCount}/{selectedEvent.femaleRequired}{selectedEvent.allowFemaleRequirementShortfall ? ' (flexible)' : ''}</span>
                           {genderComposition.femaleCount >= selectedEvent.femaleRequired && <span className="text-green-600 dark:text-green-400 font-semibold">✓</span>}
                         </div>
                       )}
@@ -755,7 +784,9 @@ export default function RegisterPage() {
                   {players.map((player, idx) => {
                     const isExpanded = expandedPlayer === idx || selectedEvent.type !== 'team';
                     const hasDupUucms = duplicateUucmsIndices.has(idx);
-                    const hasError = (submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role))) || hasDupUucms;
+                    const isEmptySlot = !player.name && !player.uucms && !player.phone && !player.gender;
+                    const isOptionalEmpty = selectedEvent.allowFemaleRequirementShortfall && !player.isSubstitute && isEmptySlot;
+                    const hasError = !isOptionalEmpty && (submitAttempted && (!player.name || !player.uucms || !player.phone || !player.department || !player.gender || (selectedEvent?.sportType === 'cricket' && !player.role))) || hasDupUucms;
                     return (
                     <div
                       key={idx}
@@ -788,7 +819,8 @@ export default function RegisterPage() {
                         <div className="flex items-center gap-3">
                            {hasDupUucms && !isExpanded && <span className="text-xs text-red-500 font-semibold bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full uppercase tracking-wider">Duplicate UUCMS</span>}
                            {!hasDupUucms && hasError && !isExpanded && <span className="text-xs text-red-500 font-semibold bg-red-50 px-2 py-1 rounded-full uppercase tracking-wider">Incomplete</span>}
-                           {player.name && player.uucms && player.phone && !hasError && !isExpanded && <CheckCircle2 className="text-green-500" size={22} />}
+
+                           {player.name && player.uucms && player.phone && !hasError && !isOptionalEmpty && !isExpanded && <CheckCircle2 className="text-green-500" size={22} />}
                            {selectedEvent.type === 'team' && (isExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />)}
                         </div>
                       </button>
@@ -918,12 +950,14 @@ export default function RegisterPage() {
                 {selectedEvent.type === 'team' && (
                   <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <p className="text-xs text-gray-500 dark:text-gray-400">Main players: {mainPlayers.length}/{selectedEvent.teamSize} (choose exactly one leader)</p>
-                    <button
-                      onClick={addSubstitute}
-                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-800/50 hover:border-blue-400 dark:hover:border-blue-500 px-4 py-2 rounded-lg transition-colors"
-                    >
-                      + Add Substitute
-                    </button>
+                    {allowSubstitutes && (
+                      <button
+                        onClick={addSubstitute}
+                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-800/50 hover:border-blue-400 dark:hover:border-blue-500 px-4 py-2 rounded-lg transition-colors"
+                      >
+                        + Add Substitute
+                      </button>
+                    )}
                   </div>
                 )}
 

@@ -18,6 +18,7 @@ const empty = {
   cricketOvers: 20,
   maleRequired: 0,
   femaleRequired: 0,
+  allowFemaleRequirementShortfall: false,
   allowedGenders: ['male', 'female'],
   allowedDepartments: [],
   registrationFee: 0,
@@ -157,6 +158,7 @@ export default function ManageEvents() {
       lanesPerHeat: event.lanesPerHeat || 8,
       fieldAttempts: event.fieldAttempts || 3,
       cricketOvers: event.cricketOvers || 20,
+      allowFemaleRequirementShortfall: Boolean(event.allowFemaleRequirementShortfall),
       allowedGenders: event.allowedGenders || ['male', 'female'],
       allowedDepartments: event.allowedDepartments || [],
       registrationFee: event.registrationFee || 0,
@@ -391,6 +393,15 @@ export default function ManageEvents() {
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Females Required <span className="text-gray-400 text-xs">(optional)</span></label>
                 <input type="number" className="input-field" min="0" value={form.femaleRequired} onChange={e => setForm({ ...form, femaleRequired: e.target.value })} />
+                <label className="mt-2 flex items-start gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.allowFemaleRequirementShortfall)}
+                    onChange={e => setForm({ ...form, allowFemaleRequirementShortfall: e.target.checked })}
+                    className="mt-0.5 rounded"
+                  />
+                  <span>Allow registration even if fewer female players are entered</span>
+                </label>
               </div>
             )}
             <div>

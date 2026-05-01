@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import Navbar from '../../components/public/Navbar';
+import CricketEventPopup from '../../components/CricketEventPopup';
 import API from '../../utils/api';
 import resolveSocketUrl from '../../utils/socket';
 
@@ -27,7 +28,9 @@ export default function CricketLivePage() {
   const [activeTab, setActiveTab] = useState('live');
   const [loading, setLoading] = useState(true);
   const [selectedInning, setSelectedInning] = useState(1);
-  const [wicketFlash, setWicketFlash] = useState(null);
+  const [eventPopup, setEventPopup] = useState(null);
+  const eventQueueRef = useRef([]);
+  const isShowingRef = useRef(false);
 
   const loadMatch = useCallback(async () => {
     try {
@@ -102,14 +105,75 @@ export default function CricketLivePage() {
       console.log(`✅ Successfully joined cricket match:`, data);
     };
 
-    const onBallUpdate = () => {
+    const showNextEvent = () => {
+      if (eventQueueRef.current.length === 0) {
+        isShowingRef.current = false;
+        return;
+      }
+      isShowingRef.current = true;
+      const nextEvent = eventQueueRef.current.shift();
+      setEventPopup(nextEvent);
+    };
+
+    const queueEvent = (evt) => {
+      eventQueueRef.current.push(evt);
+      if (!isShowingRef.current) {
+        showNextEvent();
+      }
+    };
+
+    const onBallUpdate = (data) => {
+      const delivery = data?.delivery;
+      const snapshot = data?.matchSnapshot;
+
+      // Detect SIX
+      if (delivery?.isSix) {
+        queueEvent({
+          type: 'six',
+          data: {
+            batsmanName: delivery.batsmanName,
+            bowlerName: delivery.bowlerName,
+          },
+        });
+      }
+      // Detect FOUR
+      else if (delivery?.isFour) {
+        queueEvent({
+          type: 'four',
+          data: {
+            batsmanName: delivery.batsmanName,
+            bowlerName: delivery.bowlerName,
+          },
+        });
+      }
+
+      // Detect ALL OUT (innings completed due to 10 wickets)
+      if (snapshot?.inningsCompleted && snapshot?.totalWickets >= 10) {
+        queueEvent({
+          type: 'allout',
+          data: {
+            score: `${snapshot.totalRuns}/${snapshot.totalWickets}`,
+            overs: snapshot.totalOvers,
+          },
+        });
+      }
+
       handleUpdate();
     };
 
     const onWicket = async (data) => {
       console.log(`🏏 Wicket! ${data.wicketData.batsmanName} is out!`);
-      setWicketFlash(data.wicketData);
-      setTimeout(() => setWicketFlash(null), 5000);
+      queueEvent({
+        type: 'wicket',
+        data: {
+          batsmanName: data.wicketData.batsmanName,
+          bowlerName: data.wicketData.bowlerName,
+          wicketType: data.wicketData.wicketType,
+          fielder: data.wicketData.fielder,
+          score: data.wicketData.score,
+          over: data.wicketData.over,
+        },
+      });
       await handleUpdate();
     };
 
@@ -271,15 +335,22 @@ export default function CricketLivePage() {
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
       <Navbar />
 
-      {/* Wicket Flash Notification */}
-      {wicketFlash && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
-          <div className="bg-red-600 text-white px-6 py-3 rounded-xl shadow-2xl font-bold text-center">
-            <div className="text-lg">🔴 WICKET!</div>
-            <div className="text-sm opacity-90">{wicketFlash.batsmanName} — {wicketFlash.score} ({wicketFlash.over} ov)</div>
-          </div>
-        </div>
-      )}
+      {/* Cricket Event Popup (FOUR / SIX / WICKET / ALL OUT) */}
+      <CricketEventPopup
+        event={eventPopup}
+        onDismiss={() => {
+          setEventPopup(null);
+          // Show next queued event after a brief pause
+          setTimeout(() => {
+            if (eventQueueRef.current.length > 0) {
+              const nextEvent = eventQueueRef.current.shift();
+              setEventPopup(nextEvent);
+            } else {
+              isShowingRef.current = false;
+            }
+          }, 300);
+        }}
+      />
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         <Link to="/cricket" className="text-blue-600 dark:text-blue-400 hover:underline text-sm mb-4 inline-block">← All Matches</Link>
