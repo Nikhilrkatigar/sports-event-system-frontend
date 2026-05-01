@@ -180,7 +180,20 @@ export default function CricketMatchesPage() {
       .sort((a, b) => (b.wickets - a.wickets) || (Number(a.economy) - Number(b.economy)) || (a.runs - b.runs) || a.name.localeCompare(b.name))
       .slice(0, 5);
 
-    return { topBatsmen, topBowlers };
+    // Man of the Series — player with most MoM awards
+    const momCount = new Map();
+    completedMatches.forEach((match) => {
+      const mom = match.result?.manOfTheMatch;
+      if (mom && mom !== 'N/A' && mom.trim()) {
+        momCount.set(mom, (momCount.get(mom) || 0) + 1);
+      }
+    });
+    const manOfSeries = Array.from(momCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([name, count]) => ({ name, count }));
+
+    return { topBatsmen, topBowlers, manOfSeries };
   }, [matches]);
 
   return (
@@ -346,6 +359,31 @@ export default function CricketMatchesPage() {
                   </div>
                 )}
               </div>
+
+              {/* Man of the Series */}
+              {leaderboard.manOfSeries?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-yellow-600 dark:text-yellow-400 mb-2">🏅 Man of the Series</p>
+                  <div className="space-y-1.5">
+                    {leaderboard.manOfSeries.map((p, i) => (
+                      <div key={p.name} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
+                        <span className="text-gray-400">{i + 1}</span>
+                        <span className="truncate text-gray-800 dark:text-gray-200 font-medium" title={p.name}>
+                          {p.name}
+                          {i === 0 && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
+                              ⭐ Star
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          <span className="font-bold text-yellow-600 dark:text-yellow-400">{p.count}</span> MoM
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

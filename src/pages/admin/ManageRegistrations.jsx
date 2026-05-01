@@ -818,7 +818,7 @@ export default function ManageRegistrations() {
                                             View Screenshot
                                           </button>
                                           <a
-                                            href={reg.paymentScreenshot}
+                                            href={getImageUrl(reg.paymentScreenshot)}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-xs text-blue-600 hover:underline"
@@ -993,8 +993,33 @@ export default function ManageRegistrations() {
                 <p className="text-sm text-gray-500">{paymentPreview.label}</p>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const imgUrl = getImageUrl(paymentPreview.src);
+                      const response = await fetch(imgUrl);
+                      const blob = await response.blob();
+                      const ext = blob.type.includes('png') ? 'png' : 'jpg';
+                      const safeName = (paymentPreview.label || 'screenshot').replace(/[^a-zA-Z0-9]/g, '_');
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `payment_${safeName}.${ext}`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(url), 100);
+                    } catch {
+                      toast.error('Failed to download screenshot');
+                    }
+                  }}
+                  className="text-sm bg-green-100 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-200 font-medium"
+                >
+                  ⬇ Download
+                </button>
                 <a
-                  href={paymentPreview.src}
+                  href={getImageUrl(paymentPreview.src)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 hover:underline"
@@ -1011,7 +1036,7 @@ export default function ManageRegistrations() {
               </div>
             </div>
             <div className="bg-gray-50 p-4 overflow-auto max-h-[calc(90vh-70px)]">
-              <img src={paymentPreview.src} alt="Payment screenshot preview" className="w-full h-auto rounded-lg border border-gray-200 bg-white" />
+              <img src={getImageUrl(paymentPreview.src)} alt="Payment screenshot preview" className="w-full h-auto rounded-lg border border-gray-200 bg-white" />
             </div>
           </div>
         </div>

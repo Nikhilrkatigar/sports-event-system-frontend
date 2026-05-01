@@ -115,6 +115,16 @@ export default function CricketManage() {
                     {match.result?.resultText && (
                       <p className="text-sm text-green-600 dark:text-green-400 font-medium mt-2">{match.result.resultText}</p>
                     )}
+                    {match.result?.manOfTheMatch && match.result.manOfTheMatch !== 'N/A' && (
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-base">🏅</span>
+                        <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400">{match.result.manOfTheMatch}</span>
+                        <span className="text-[10px] text-gray-400">MoM</span>
+                      </div>
+                    )}
+                    {match.status === 'completed' && !match.result?.manOfTheMatch && (
+                      <p className="text-xs text-orange-500 italic mt-1">⚠ MoM not set</p>
+                    )}
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={e => { e.stopPropagation(); handleDelete(match._id); }}

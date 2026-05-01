@@ -104,6 +104,7 @@ export default function CricketManagePage() {
               <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Event</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Teams</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Score</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Result / MoM</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Status</th>
               <th className="px-4 py-3 text-left font-semibold text-gray-600 dark:text-gray-300">Venue</th>
               <th className="px-4 py-3 text-right font-semibold text-gray-600 dark:text-gray-300">Actions</th>
@@ -137,13 +138,34 @@ export default function CricketManagePage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">{getInningsDisplay(match)}</td>
+                  <td className="px-4 py-3">
+                    {match.result?.resultText ? (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-green-700 dark:text-green-400">{match.result.resultText}</div>
+                        {match.result?.manOfTheMatch && match.result.manOfTheMatch !== 'N/A' && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-yellow-500 text-sm">🏅</span>
+                            <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-400">{match.result.manOfTheMatch}</span>
+                          </div>
+                        )}
+                        {match.result?.manOfTheMatch && match.result.manOfTheMatch === 'N/A' && (
+                          <div className="text-xs text-gray-400 italic">MoM not set</div>
+                        )}
+                        {!match.result?.manOfTheMatch && match.status === 'completed' && (
+                          <div className="text-xs text-orange-500 italic">⚠ MoM missing — re-complete match</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{getStatusBadge(match.status)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{match.venue || '—'}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex gap-2 justify-end">
                       {match.status === 'live' && (
                         <button
-                          onClick={() => navigate(`/admin/cricket/live-scoring/${match._id}`)}
+                        onClick={() => navigate(`/admin/cricket/${match._id}`)}
                           className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-bold transition"
                         >
                           🔴 Score Now
@@ -159,7 +181,7 @@ export default function CricketManagePage() {
                         onClick={() => {
                           if (match.status === 'upcoming') {
                             // Start match scoring
-                            navigate(`/admin/cricket/live-scoring/${match._id}`);
+                            navigate(`/admin/cricket/${match._id}`);
                           }
                         }}
                         disabled={match.status !== 'upcoming'}

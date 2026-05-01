@@ -306,7 +306,14 @@ export default function CricketLivePage() {
 
   // Recent balls color coding
   const recentBalls = [...deliveries].slice(-24).map(d => {
-    if (d.isWicket) return { label: 'W', class: 'bg-red-500 text-white' };
+    if (d.isWicket) {
+      let label = '';
+      if (d.isWide) label = d.totalRuns > 1 ? `${d.totalRuns - 1}+1wd+W` : '1wd+W';
+      else if (d.isNoBall) label = d.totalRuns > 1 ? `${d.totalRuns - 1}+1nb+W` : '1nb+W';
+      else if (d.runsScored > 0) label = `${d.runsScored}+W`;
+      else label = 'W';
+      return { label, class: 'bg-red-500 text-white' };
+    }
     if (d.isWide) return { label: `${d.totalRuns}wd`, class: 'bg-yellow-400 text-yellow-900' };
     if (d.isNoBall) return { label: `${d.totalRuns}nb`, class: 'bg-yellow-400 text-yellow-900' };
     if (d.isOverthrow) return { label: formatOverthrowLabel(d), class: 'bg-orange-400 text-orange-900' };
@@ -395,6 +402,16 @@ export default function CricketLivePage() {
           {/* Status text */}
           {match.result?.resultText && (
             <p className="text-center text-sm font-semibold bg-white/10 rounded-lg py-2 mt-2">{match.result.resultText}</p>
+          )}
+          {/* Man of the Match banner */}
+          {match.status === 'completed' && match.result?.manOfTheMatch && match.result.manOfTheMatch !== 'N/A' && (
+            <div className="mt-3 flex items-center justify-center gap-2 bg-yellow-400/20 border border-yellow-400/40 rounded-xl px-4 py-2.5">
+              <span className="text-2xl">🏅</span>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-widest text-yellow-200 font-semibold">Man of the Match</p>
+                <p className="text-base font-black text-yellow-300">{match.result.manOfTheMatch}</p>
+              </div>
+            </div>
           )}
           {isLive && runsNeeded > 0 && (
             <p className="text-center text-sm mt-2 opacity-90">
@@ -645,7 +662,7 @@ export default function CricketLivePage() {
                             else if (b.isOverthrow) cls = 'bg-orange-400 text-orange-900';
                             else if (b.runsScored > 0) cls = 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300';
                             const label = b.isWicket
-                              ? 'W'
+                              ? (b.isWide ? (b.totalRuns > 1 ? `${b.totalRuns - 1}+1wd+W` : '1wd+W') : b.isNoBall ? (b.totalRuns > 1 ? `${b.totalRuns - 1}+1nb+W` : '1nb+W') : b.runsScored > 0 ? `${b.runsScored}+W` : 'W')
                               : b.isWide
                                 ? `${b.totalRuns}wd`
                                 : b.isNoBall
@@ -681,6 +698,22 @@ export default function CricketLivePage() {
                     </p>
                   );
                 })()}
+              </div>
+            )}
+
+            {/* Completed match MoM card */}
+            {match.status === 'completed' && match.result?.manOfTheMatch && match.result.manOfTheMatch !== 'N/A' && (
+              <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-2xl p-5 border border-yellow-200 dark:border-yellow-800 shadow-lg">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-yellow-400/20 border-2 border-yellow-400 flex items-center justify-center flex-shrink-0">
+                    <span className="text-3xl">🏅</span>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-yellow-600 dark:text-yellow-400 mb-0.5">🏆 Man of the Match</p>
+                    <p className="text-xl font-black text-gray-900 dark:text-white">{match.result.manOfTheMatch}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{match.result.resultText}</p>
+                  </div>
+                </div>
               </div>
             )}
 
