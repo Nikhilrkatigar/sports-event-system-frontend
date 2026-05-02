@@ -39,6 +39,13 @@ export default function CricketScoringPanel() {
   const [showOverthrowModal, setShowOverthrowModal] = useState(false);
   const [showWideRunsModal, setShowWideRunsModal] = useState(false);
   const [showPenaltyModal, setShowPenaltyModal] = useState(false);
+  const [showChangeBowlerModal, setShowChangeBowlerModal] = useState(false);
+  const [showResumeBatsmanModal, setShowResumeBatsmanModal] = useState(false);
+
+  // Resume Batsman form
+  const [resumeBatsmanId, setResumeBatsmanId] = useState('');
+  const [replaceOutBatsmanId, setReplaceOutBatsmanId] = useState('');
+  const [resumeFillEmptySpot, setResumeFillEmptySpot] = useState(false);
 
   // Wicket form
   const [wicketType, setWicketType] = useState('bowled');
@@ -419,6 +426,39 @@ export default function CricketScoringPanel() {
       setShowEndOverModal(false);
       setNewBowlerId('');
       toast.success('New over started');
+      await loadMatch();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed');
+    }
+  };
+
+  const handleChangeBowler = async () => {
+    if (!newBowlerId) return toast.error('Select new bowler');
+    try {
+      await API.post(`/cricket/matches/${matchId}/change-bowler`, { newBowlerId });
+      setShowChangeBowlerModal(false);
+      setNewBowlerId('');
+      toast.success('Bowler changed');
+      await loadMatch();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed');
+    }
+  };
+
+  const handleResumeBatsman = async () => {
+    if (!resumeBatsmanId) return toast.error('Select a batsman to resume');
+    if (!resumeFillEmptySpot && !replaceOutBatsmanId) return toast.error('Select a spot to fill or a batsman to replace');
+    try {
+      await API.post(`/cricket/matches/${matchId}/resume-batsman`, { 
+        batsmanId: resumeBatsmanId, 
+        replaceOutBatsmanId: replaceOutBatsmanId || undefined, 
+        fillEmptySpot: resumeFillEmptySpot 
+      });
+      setShowResumeBatsmanModal(false);
+      setResumeBatsmanId('');
+      setReplaceOutBatsmanId('');
+      setResumeFillEmptySpot(false);
+      toast.success('Batsman resumed');
       await loadMatch();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed');
@@ -821,6 +861,7 @@ export default function CricketScoringPanel() {
               <div className="flex items-center gap-2">
                 <span className="text-red-500">🎯</span>
                 <span className="font-bold text-gray-900 dark:text-white">{currentBowler?.playerName || 'Unknown'}</span>
+                <button onClick={() => setShowChangeBowlerModal(true)} title="Change Bowler" className="ml-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-xs rounded hover:bg-gray-200 dark:hover:bg-gray-700">🔄</button>
               </div>
               <div className="text-right text-sm">
                 <span className="font-mono font-bold text-gray-900 dark:text-white">
@@ -920,10 +961,14 @@ export default function CricketScoringPanel() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <button onClick={handleUndo} disabled={sending}
             className="py-3 rounded-xl text-sm font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all active:scale-95 disabled:opacity-50">
             ↩ Undo
+          </button>
+          <button onClick={() => setShowResumeBatsmanModal(true)} disabled={sending}
+            className="py-3 rounded-xl text-sm font-bold bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-all active:scale-95">
+            + Resume Batsman
           </button>
           <button onClick={handleEndInnings}
             className="py-3 rounded-xl text-sm font-bold bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/40 transition-all active:scale-95">
@@ -1249,6 +1294,73 @@ export default function CricketScoringPanel() {
             <div className="flex gap-3">
               <button onClick={() => setShowUndoConfirmModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">Cancel</button>
               <button onClick={confirmUndo} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">Undo</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── CHANGE BOWLER MODAL ── */}
+      {showChangeBowlerModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowChangeBowlerModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">🔄 Change Bowler</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select a new bowler to replace the current one.</p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Bowler</label>
+              <select value={newBowlerId} onChange={e => setNewBowlerId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white">
+                <option value="">Select bowler...</option>
+                {getAvailableBowlers().filter(b => b.index !== match.currentBowlerId).map((p) => (
+                  <option key={p.index} value={p.index}>{ROLE_EMOJI[p.role] || ''} {p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowChangeBowlerModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700">Cancel</button>
+              <button onClick={handleChangeBowler} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Change</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RESUME BATSMAN MODAL ── */}
+      {showResumeBatsmanModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowResumeBatsmanModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-4">+ Resume Batsman</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select a retired hurt batsman to return to the crease.</p>
+            
+            <div className="space-y-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Batsman to Resume</label>
+                <select value={resumeBatsmanId} onChange={e => setResumeBatsmanId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white">
+                  <option value="">Select retired batsman...</option>
+                  {(currentInnings?.batsmenStats || []).filter(b => b.isOut && b.dismissalType === 'retired_hurt').map((b) => (
+                    <option key={b.playerId} value={b.playerId}>{b.playerName}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Position at Crease</label>
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" id="fillEmpty" checked={resumeFillEmptySpot} onChange={e => {
+                    setResumeFillEmptySpot(e.target.checked);
+                    if (e.target.checked) setReplaceOutBatsmanId('');
+                  }} className="rounded border-gray-300" />
+                  <label htmlFor="fillEmpty" className="text-sm text-gray-700 dark:text-gray-300">Fill empty spot (if a wicket just fell)</label>
+                </div>
+                {!resumeFillEmptySpot && (
+                  <select value={replaceOutBatsmanId} onChange={e => setReplaceOutBatsmanId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white">
+                    <option value="">Replace current batsman...</option>
+                    {match.currentStrikerId && <option value={match.currentStrikerId}>Replace Striker ({striker?.playerName})</option>}
+                    {match.currentNonStrikerId && <option value={match.currentNonStrikerId}>Replace Non-Striker ({nonStriker?.playerName})</option>}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowResumeBatsmanModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700">Cancel</button>
+              <button onClick={handleResumeBatsman} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700">Resume</button>
             </div>
           </div>
         </div>

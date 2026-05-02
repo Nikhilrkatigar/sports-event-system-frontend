@@ -890,7 +890,7 @@ export default function RegisterPage() {
                               placeholder="10-digit number"
                               value={player.phone}
                               maxLength="10"
-                              onChange={e => updatePlayer(idx, 'phone', e.target.value)}
+                          onChange={e => updatePlayer(idx, 'phone', e.target.value)}
                             />
                             {submitAttempted && !player.phone && <p className="text-[10px] text-red-500 mt-1.5 font-semibold">Phone is required</p>}
                           </div>

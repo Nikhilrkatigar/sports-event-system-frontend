@@ -122,20 +122,36 @@ export default function CricketMatchesPage() {
 
     completedMatches.forEach((match) => {
       (match.innings || []).forEach((inning) => {
+        const battingTeam = inning.battingTeam === 'teamA' ? match.teamA : match.teamB;
+        const bowlingTeam = inning.bowlingTeam === 'teamA' ? match.teamA : match.teamB;
+
         (inning.batsmenStats || []).forEach((b) => {
           const name = (b.playerName || '').trim();
           if (!name) return;
 
-          if (!batsmenMap.has(name)) {
-            batsmenMap.set(name, {
+          let gender = 'unspecified';
+          if (b.playerId !== undefined && b.playerId !== '') {
+            gender = battingTeam.players?.[parseInt(b.playerId)]?.gender || 'unspecified';
+          } else {
+            const p = battingTeam.players?.find(p => p.name === name);
+            if (p) gender = p.gender || 'unspecified';
+          }
+
+          const teamName = battingTeam.name || '';
+          const key = `${name}-${teamName}`;
+
+          if (!batsmenMap.has(key)) {
+            batsmenMap.set(key, {
               name,
+              teamName,
+              gender,
               runs: 0,
               balls: 0,
               innings: 0
             });
           }
 
-          const row = batsmenMap.get(name);
+          const row = batsmenMap.get(key);
           row.runs += Number(b.runs || 0);
           row.balls += Number(b.ballsFaced || 0);
           row.innings += 1;
@@ -145,9 +161,22 @@ export default function CricketMatchesPage() {
           const name = (bw.playerName || '').trim();
           if (!name) return;
 
-          if (!bowlersMap.has(name)) {
-            bowlersMap.set(name, {
+          let gender = 'unspecified';
+          if (bw.playerId !== undefined && bw.playerId !== '') {
+            gender = bowlingTeam.players?.[parseInt(bw.playerId)]?.gender || 'unspecified';
+          } else {
+            const p = bowlingTeam.players?.find(p => p.name === name);
+            if (p) gender = p.gender || 'unspecified';
+          }
+
+          const teamName = bowlingTeam.name || '';
+          const key = `${name}-${teamName}`;
+
+          if (!bowlersMap.has(key)) {
+            bowlersMap.set(key, {
               name,
+              teamName,
+              gender,
               wickets: 0,
               balls: 0,
               runs: 0,
@@ -155,7 +184,7 @@ export default function CricketMatchesPage() {
             });
           }
 
-          const row = bowlersMap.get(name);
+          const row = bowlersMap.get(key);
           row.wickets += Number(bw.wickets || 0);
           row.balls += Number(bw.ballsBowled || 0);
           row.runs += Number(bw.runsConceded || 0);
@@ -164,23 +193,27 @@ export default function CricketMatchesPage() {
       });
     });
 
-    const topBatsmen = Array.from(batsmenMap.values())
+    const allBatsmen = Array.from(batsmenMap.values())
       .map((b) => ({
         ...b,
         strikeRate: b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(2) : '0.00'
       }))
-      .sort((a, b) => (b.runs - a.runs) || (a.balls - b.balls) || a.name.localeCompare(b.name))
-      .slice(0, 5);
+      .sort((a, b) => (b.runs - a.runs) || (a.balls - b.balls) || a.name.localeCompare(b.name));
 
-    const topBowlers = Array.from(bowlersMap.values())
+    const topBoysBatsmen = allBatsmen.filter(b => b.gender !== 'female').slice(0, 3);
+    const topGirlsBatsmen = allBatsmen.filter(b => b.gender === 'female').slice(0, 3);
+
+    const allBowlers = Array.from(bowlersMap.values())
       .map((b) => ({
         ...b,
         economy: b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'
       }))
-      .sort((a, b) => (b.wickets - a.wickets) || (Number(a.economy) - Number(b.economy)) || (a.runs - b.runs) || a.name.localeCompare(b.name))
-      .slice(0, 5);
+      .sort((a, b) => (b.wickets - a.wickets) || (Number(a.economy) - Number(b.economy)) || (a.runs - b.runs) || a.name.localeCompare(b.name));
 
-    // Man of the Series — player with most MoM awards
+    const topBoysBowlers = allBowlers.filter(b => b.gender !== 'female').slice(0, 3);
+    const topGirlsBowlers = allBowlers.filter(b => b.gender === 'female').slice(0, 3);
+
+    // Man of the Series - player with most MoM awards
     const momCount = new Map();
     completedMatches.forEach((match) => {
       const mom = match.result?.manOfTheMatch;
@@ -193,8 +226,84 @@ export default function CricketMatchesPage() {
       .slice(0, 3)
       .map(([name, count]) => ({ name, count }));
 
-    return { topBatsmen, topBowlers, manOfSeries };
+    return { topBoysBatsmen, topGirlsBatsmen, topBoysBowlers, topGirlsBowlers, manOfSeries };
   }, [matches]);
+
+  const renderBatsmenList = (title, list, titleColor) => (
+    <div className="mb-5">
+      <p className={`text-xs font-semibold uppercase tracking-wider ${titleColor} mb-2`}>{title}</p>
+      {loading ? (
+        <div className="space-y-1.5">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center">
+              <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+              <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${60 + i * 10}%` }} />
+              <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <p className="text-xs text-gray-400">No completed match data yet</p>
+      ) : (
+        <div className="space-y-1.5">
+          {list.map((p, i) => (
+            <div key={`${p.name}-${p.teamName}`} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
+              <span className="text-gray-400">{i + 1}</span>
+              <span className="truncate text-gray-800 dark:text-gray-200" title={`${p.name} (${p.teamName})`}>
+                {p.name} {p.teamName && <span className="text-gray-400">({p.teamName})</span>}
+                {i === 0 && (
+                  <span className="ml-1.5 inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
+                    🧢 Cap
+                  </span>
+                )}
+              </span>
+              <span className="text-gray-500 dark:text-gray-400">
+                <span className="font-bold text-gray-900 dark:text-white">{p.runs}</span> ({p.balls}) SR {p.strikeRate}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderBowlerList = (title, list, titleColor) => (
+    <div className="mb-5">
+      <p className={`text-xs font-semibold uppercase tracking-wider ${titleColor} mb-2`}>{title}</p>
+      {loading ? (
+        <div className="space-y-1.5">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center">
+              <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+              <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${55 + i * 12}%` }} />
+              <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            </div>
+          ))}
+        </div>
+      ) : list.length === 0 ? (
+        <p className="text-xs text-gray-400">No completed match data yet</p>
+      ) : (
+        <div className="space-y-1.5">
+          {list.map((p, i) => (
+            <div key={`${p.name}-${p.teamName}`} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
+              <span className="text-gray-400">{i + 1}</span>
+              <span className="truncate text-gray-800 dark:text-gray-200" title={`${p.name} (${p.teamName})`}>
+                {p.name} {p.teamName && <span className="text-gray-400">({p.teamName})</span>}
+                {i === 0 && (
+                  <span className="ml-1.5 inline-flex items-center rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
+                    🧢 Cap
+                  </span>
+                )}
+              </span>
+              <span className="text-gray-500 dark:text-gray-400">
+                <span className="font-bold text-green-600 dark:text-green-400">{p.wickets}W</span> {p.balls}b Eco {p.economy}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-dark-bg transition-colors duration-300">
@@ -289,75 +398,13 @@ export default function CricketMatchesPage() {
 
             <div className="space-y-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2">Best Batsmen</p>
-                {loading ? (
-                  <div className="space-y-1.5">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center">
-                        <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                        <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${60 + i * 10}%` }} />
-                        <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                      </div>
-                    ))}
-                  </div>
-                ) : leaderboard.topBatsmen.length === 0 ? (
-                  <p className="text-xs text-gray-400">No completed match data yet</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {leaderboard.topBatsmen.map((p, i) => (
-                      <div key={p.name} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
-                        <span className="text-gray-400">{i + 1}</span>
-                        <span className="truncate text-gray-800 dark:text-gray-200" title={p.name}>
-                          {p.name}
-                          {i === 0 && (
-                            <span className="ml-1.5 inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
-                              🧢 Orange Cap
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400">
-                          <span className="font-bold text-gray-900 dark:text-white">{p.runs}</span> ({p.balls}) SR {p.strikeRate}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {renderBatsmenList("Top 3 Batsmen (Boys)", leaderboard.topBoysBatsmen, "text-blue-600 dark:text-blue-400")}
+                {renderBatsmenList("Top 3 Batsmen (Girls)", leaderboard.topGirlsBatsmen, "text-pink-600 dark:text-pink-400")}
               </div>
 
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-green-600 dark:text-green-400 mb-2">Best Bowlers</p>
-                {loading ? (
-                  <div className="space-y-1.5">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center">
-                        <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                        <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${55 + i * 12}%` }} />
-                        <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
-                      </div>
-                    ))}
-                  </div>
-                ) : leaderboard.topBowlers.length === 0 ? (
-                  <p className="text-xs text-gray-400">No completed match data yet</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {leaderboard.topBowlers.map((p, i) => (
-                      <div key={p.name} className="grid grid-cols-[16px_1fr_auto] gap-2 items-center text-xs">
-                        <span className="text-gray-400">{i + 1}</span>
-                        <span className="truncate text-gray-800 dark:text-gray-200" title={p.name}>
-                          {p.name}
-                          {i === 0 && (
-                            <span className="ml-1.5 inline-flex items-center rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 text-[10px] font-semibold align-middle">
-                              🧢 Purple Cap
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-gray-500 dark:text-gray-400">
-                          <span className="font-bold text-green-600 dark:text-green-400">{p.wickets}W</span> {p.balls}b Eco {p.economy}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {renderBowlerList("Top 3 Bowlers (Boys)", leaderboard.topBoysBowlers, "text-green-600 dark:text-green-400")}
+                {renderBowlerList("Top 3 Bowlers (Girls)", leaderboard.topGirlsBowlers, "text-purple-600 dark:text-purple-400")}
               </div>
 
               {/* Man of the Series */}
