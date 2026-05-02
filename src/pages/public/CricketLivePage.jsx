@@ -147,6 +147,34 @@ export default function CricketLivePage() {
         });
       }
 
+      // Detect NO BALL
+      if (delivery?.isNoBall) {
+        queueEvent({
+          type: 'noball',
+          data: {
+            bowlerName: delivery.bowlerName,
+            runs: delivery.totalRuns,
+          },
+        });
+      }
+
+      // Detect Milestones
+      if (delivery?.isCentury) {
+        queueEvent({
+          type: 'century',
+          data: {
+            batsmanName: delivery.batsmanName,
+          },
+        });
+      } else if (delivery?.isFifty) {
+        queueEvent({
+          type: 'fifty',
+          data: {
+            batsmanName: delivery.batsmanName,
+          },
+        });
+      }
+
       // Detect ALL OUT (innings completed due to 10 wickets)
       if (snapshot?.inningsCompleted && snapshot?.totalWickets >= 10) {
         queueEvent({

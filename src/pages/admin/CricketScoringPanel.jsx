@@ -33,6 +33,7 @@ export default function CricketScoringPanel() {
   const [showTossModal, setShowTossModal] = useState(false);
   const [showStartInningsModal, setShowStartInningsModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showEditMatchModal, setShowEditMatchModal] = useState(false);
   const [showUndoConfirmModal, setShowUndoConfirmModal] = useState(false);
   const [showNoBallRunsModal, setShowNoBallRunsModal] = useState(false);
   const [showOverthrowModal, setShowOverthrowModal] = useState(false);
@@ -123,6 +124,7 @@ export default function CricketScoringPanel() {
     socket.on('cricket_wicket', () => loadMatch());
     socket.on('cricket_innings_end', () => { loadMatch(); loadDeliveries(); });
     socket.on('cricket_match_end', () => { loadMatch(); toast.success('🏆 Match completed!'); });
+    socket.on('cricket_super_over', () => { loadMatch(); toast.success('⚡ SUPER OVER TRIGGERED!'); });
     socket.on('cricket_undo', () => { loadMatch(); loadDeliveries(); });
     socket.on('cricket_auto_fixtures_created', (payload) => {
       const count = Number(payload?.count || 0);
@@ -143,7 +145,10 @@ export default function CricketScoringPanel() {
     };
   }, [matchId, loadMatch, loadDeliveries]);
 
-  const currentInnings = match?.innings?.find(i => i.inningNumber === match?.currentInning);
+  const isSO = match?.isSuperOver && (match?.currentState === 'super_over_1' || match?.currentState === 'super_over_2');
+  const inningNumSO = isSO ? match?.superOverNumber : match?.currentInning;
+  const inningsArray = isSO ? match?.superOverInnings : match?.innings;
+  const currentInnings = inningsArray?.find(i => i.inningNumber === inningNumSO);
   const battingTeam = currentInnings ? match[currentInnings.battingTeam] : null;
   const bowlingTeam = currentInnings ? match[currentInnings.bowlingTeam] : null;
 
@@ -380,6 +385,33 @@ export default function CricketScoringPanel() {
     }
   };
 
+  const handleStartSuperOver = async () => {
+    if (!strikerId || !nonStrikerId || !bowlerId) return toast.error('Select all players');
+    if (strikerId === nonStrikerId) return toast.error('Striker and non-striker must be different');
+    try {
+      await API.post(`/cricket/matches/${matchId}/super-over-innings`, {
+        strikerId, nonStrikerId, bowlerId
+      });
+      setShowStartInningsModal(false);
+      toast.success('⚡ Super Over Innings started!');
+      await loadMatch();
+      await loadDeliveries();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed');
+    }
+  };
+
+  const handleSaveMatchEdits = async (newOvers) => {
+    try {
+      await API.put(`/cricket/matches/${matchId}`, { oversPerSide: Number(newOvers) });
+      setShowEditMatchModal(false);
+      toast.success('Overs updated');
+      await loadMatch();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update match');
+    }
+  };
+
   const handleEndOver = async () => {
     if (!newBowlerId) return toast.error('Select new bowler');
     try {
@@ -462,9 +494,14 @@ export default function CricketScoringPanel() {
       <div className="max-w-2xl mx-auto text-center py-12">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">🏏 {match.teamA?.name} vs {match.teamB?.name}</h1>
         <p className="text-gray-500 dark:text-gray-400 mb-8">{match.oversPerSide} overs per side • {match.venue || 'Venue TBD'}</p>
-        <button onClick={() => setShowTossModal(true)} className="px-8 py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg">
-          🪙 Record Toss
-        </button>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={() => setShowTossModal(true)} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg">
+              🪙 Record Toss
+            </button>
+            <button onClick={() => setShowEditMatchModal(true)} className="px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+              ✎ Edit Overs
+            </button>
+          </div>
 
         {showTossModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowTossModal(false)}>
@@ -490,16 +527,55 @@ export default function CricketScoringPanel() {
             </div>
           </div>
         )}
+
+        {showEditMatchModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowEditMatchModal(false)}>
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Edit Match — Overs</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Overs per side</label>
+                  <input type="number" defaultValue={match.oversPerSide} min="1" max="200" id="editOversInput" className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    const val = Number(document.getElementById('editOversInput').value || 0);
+                    if (!val || val < 1) return toast.error('Invalid overs');
+                    handleSaveMatchEdits(val);
+                  }} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold">Save</button>
+                  <button onClick={() => setShowEditMatchModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  if (match.currentState === 'toss' || match.currentState === 'innings_break') {
-    const inningNum = match.currentState === 'toss' ? 1 : 2;
-    const battingTeamKey = inningNum === 1
-      ? (match.toss?.wonBy === 'teamA' ? (match.toss?.chose === 'bat' ? 'teamA' : 'teamB') : (match.toss?.chose === 'bat' ? 'teamB' : 'teamA'))
-      : (match.innings?.[0]?.bowlingTeam || 'teamB');
-    const bowlingTeamKey = battingTeamKey === 'teamA' ? 'teamB' : 'teamA';
+  if (match.currentState === 'toss' || match.currentState === 'innings_break' || match.currentState === 'super_over_break') {
+    let inningNum = 1;
+    let battingTeamKey = 'teamA';
+    let bowlingTeamKey = 'teamB';
+    let isSuperOverBreak = match.currentState === 'super_over_break';
+    
+    if (match.currentState === 'toss') {
+      inningNum = 1;
+      battingTeamKey = match.toss?.wonBy === 'teamA' ? (match.toss?.chose === 'bat' ? 'teamA' : 'teamB') : (match.toss?.chose === 'bat' ? 'teamB' : 'teamA');
+    } else if (match.currentState === 'innings_break') {
+      inningNum = 2;
+      battingTeamKey = match.innings?.[0]?.bowlingTeam || 'teamB';
+    } else if (isSuperOverBreak) {
+      const soInningNum = (match.superOverInnings?.length || 0) === 0 ? 1 : 2;
+      inningNum = soInningNum;
+      if (soInningNum === 1) {
+        battingTeamKey = match.innings?.find(i => i.inningNumber === 2)?.battingTeam || 'teamB';
+      } else {
+        battingTeamKey = match.innings?.find(i => i.inningNumber === 1)?.battingTeam || 'teamA';
+      }
+    }
+    
+    bowlingTeamKey = battingTeamKey === 'teamA' ? 'teamB' : 'teamA';
     const battingPlayers = match[battingTeamKey]?.players?.filter(p => p.isPlaying) || [];
     const bowlingPlayers = match[bowlingTeamKey]?.players?.filter(p => p.isPlaying) || [];
 
@@ -519,14 +595,35 @@ export default function CricketScoringPanel() {
             <p className="text-blue-600 dark:text-blue-400 text-sm mt-1">Target: {(match.innings[0]?.totalRuns || 0) + 1} runs</p>
           </div>
         )}
-        <button onClick={() => { setShowStartInningsModal(true); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }} className="px-8 py-4 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 transition-all shadow-lg">
-          ▶ Start Innings {inningNum}
-        </button>
+        {isSuperOverBreak && (
+          <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/30 rounded-xl border-2 border-yellow-400 animate-pulse">
+            <h2 className="text-yellow-700 dark:text-yellow-300 font-black text-2xl uppercase tracking-widest mb-1">⚡ Super Over ⚡</h2>
+            {match.superOverInnings?.length === 1 && (
+              <>
+                <p className="text-yellow-700 dark:text-yellow-300 font-bold text-lg">
+                  SO Innings Break — {match[match.superOverInnings[0]?.battingTeam]?.name}: {match.superOverInnings[0]?.totalRuns}/{match.superOverInnings[0]?.totalWickets} ({match.superOverInnings[0]?.totalOvers} ov)
+                </p>
+                <p className="text-yellow-600 dark:text-yellow-400 text-sm mt-1">Target: {(match.superOverInnings[0]?.totalRuns || 0) + 1} runs</p>
+              </>
+            )}
+            {match.superOverInnings?.length === 0 && (
+              <p className="text-yellow-700 dark:text-yellow-300 font-bold">Scores Tied! Time for a Super Over!</p>
+            )}
+          </div>
+        )}
+        <div className="flex items-center justify-center gap-3">
+          <button onClick={() => { setShowStartInningsModal(true); setStrikerId(''); setNonStrikerId(''); setBowlerId(''); }} className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 transition-all shadow-lg">
+            ▶ Start {isSuperOverBreak ? `Super Over ${inningNum}` : `Innings ${inningNum}`}
+          </button>
+          <button onClick={() => setShowEditMatchModal(true)} className="px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            ✎ Edit Overs
+          </button>
+        </div>
 
         {showStartInningsModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowStartInningsModal(false)}>
             <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-md w-full shadow-2xl text-left" onClick={e => e.stopPropagation()}>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">▶ Start Innings {inningNum}</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">▶ Start {isSuperOverBreak ? `Super Over ${inningNum}` : `Innings ${inningNum}`}</h3>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">⚡ Striker ({match[battingTeamKey]?.name})</label>
@@ -549,7 +646,7 @@ export default function CricketScoringPanel() {
                     {bowlingPlayers.map((p, i) => <option key={i} value={String(i)}>{ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}</option>)}
                   </select>
                 </div>
-                <button onClick={handleStartInnings} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors">Start ▶</button>
+                <button onClick={isSuperOverBreak ? handleStartSuperOver : handleStartInnings} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors">Start ▶</button>
               </div>
             </div>
           </div>
@@ -562,6 +659,8 @@ export default function CricketScoringPanel() {
   if (match.status === 'completed') {
     const inn1 = match.innings?.find(i => i.inningNumber === 1);
     const inn2 = match.innings?.find(i => i.inningNumber === 2);
+    const soInn1 = match.superOverInnings?.find(i => i.inningNumber === 1);
+    const soInn2 = match.superOverInnings?.find(i => i.inningNumber === 2);
     const hasMoM = match.result?.manOfTheMatch && match.result.manOfTheMatch !== 'N/A';
     return (
       <div className="max-w-2xl mx-auto py-10 px-4">
@@ -588,6 +687,18 @@ export default function CricketScoringPanel() {
               <div className="flex justify-between px-2 py-1.5 bg-white/60 dark:bg-white/10 rounded-lg">
                 <span className="font-semibold text-gray-800 dark:text-gray-200">{match[inn2.battingTeam]?.name}</span>
                 <span className="font-mono font-bold text-gray-900 dark:text-white">{inn2.totalRuns}/{inn2.totalWickets} ({inn2.totalOvers} ov)</span>
+              </div>
+            )}
+            {soInn1 && (
+              <div className="flex justify-between px-2 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg border border-yellow-300">
+                <span className="font-semibold text-yellow-800 dark:text-yellow-200">⚡ {match[soInn1.battingTeam]?.name} (SO)</span>
+                <span className="font-mono font-bold text-yellow-900 dark:text-yellow-100">{soInn1.totalRuns}/{soInn1.totalWickets} ({soInn1.totalOvers} ov)</span>
+              </div>
+            )}
+            {soInn2 && (
+              <div className="flex justify-between px-2 py-1.5 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg border border-yellow-300">
+                <span className="font-semibold text-yellow-800 dark:text-yellow-200">⚡ {match[soInn2.battingTeam]?.name} (SO)</span>
+                <span className="font-mono font-bold text-yellow-900 dark:text-yellow-100">{soInn2.totalRuns}/{soInn2.totalWickets} ({soInn2.totalOvers} ov)</span>
               </div>
             )}
           </div>
@@ -627,7 +738,9 @@ export default function CricketScoringPanel() {
     <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">🏏 Live Scoring</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+          🏏 Live Scoring {isSO && <span className="text-yellow-500 animate-pulse ml-2 font-black">⚡ SUPER OVER</span>}
+        </h1>
         <div className="flex gap-2">
           <span className="px-3 py-1 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-full text-xs font-bold animate-pulse">● LIVE</span>
           <button onClick={() => navigate('/admin/cricket')} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">All Matches</button>
@@ -635,10 +748,10 @@ export default function CricketScoringPanel() {
       </div>
 
       {/* Score Banner */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-2xl p-5 mb-4 text-white shadow-xl">
+      <div className={`rounded-2xl p-5 mb-4 text-white shadow-xl ${isSO ? 'bg-gradient-to-r from-yellow-700 to-orange-800 border-2 border-yellow-400' : 'bg-gradient-to-r from-blue-900 to-indigo-900'}`}>
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm opacity-80">Innings {match.currentInning} • {battingTeam?.name} batting</div>
-          <div className="text-sm opacity-80">{match.oversPerSide} overs</div>
+          <div className="text-sm opacity-80">{isSO ? `Super Over Innings ${inningNumSO}` : `Innings ${match.currentInning}`} • {battingTeam?.name} batting</div>
+          <div className="text-sm opacity-80">{isSO ? '1 over' : `${match.oversPerSide} overs`}</div>
         </div>
         <div className="flex items-end justify-between">
           <div>

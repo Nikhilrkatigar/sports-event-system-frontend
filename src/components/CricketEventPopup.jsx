@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
  * CricketEventPopup – Full-screen animated overlay for key cricket moments.
  *
  * Props:
- *   event: { type: 'four'|'six'|'wicket'|'allout', data: {...} } | null
+ *   event: { type: 'four'|'six'|'wicket'|'noball'|'allout', data: {...} } | null
  *   onDismiss: () => void
  */
 
@@ -68,6 +68,24 @@ const EVENT_CONFIG = {
       </svg>
     ),
   },
+  noball: {
+    emoji: '⚠️',
+    title: 'NO BALL!',
+    subtitle: 'Free Hit?',
+    gradient: 'from-amber-700 via-yellow-600 to-orange-600',
+    glow: 'shadow-[0_0_120px_40px_rgba(245,158,11,0.45)]',
+    ringColor: 'border-amber-300',
+    particleColor: 'bg-amber-300',
+    textColor: 'text-amber-200',
+    accentColor: 'text-yellow-100',
+    duration: 3200,
+    icon: (
+      <svg viewBox="0 0 100 100" className="w-20 h-20 drop-shadow-2xl">
+        <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="4" className="animate-[pulse_1.8s_ease-in-out_infinite]" />
+        <text x="50" y="61" textAnchor="middle" fontSize="44" fontWeight="900" fill="white" className="drop-shadow-lg">NB</text>
+      </svg>
+    ),
+  },
   allout: {
     emoji: '💥',
     title: 'ALL OUT!',
@@ -85,6 +103,45 @@ const EVENT_CONFIG = {
         <line x1="25" y1="25" x2="75" y2="75" stroke="rgba(239,68,68,0.8)" strokeWidth="4" strokeLinecap="round" />
         <line x1="75" y1="25" x2="25" y2="75" stroke="rgba(239,68,68,0.8)" strokeWidth="4" strokeLinecap="round" />
         <text x="50" y="95" textAnchor="middle" fontSize="12" fontWeight="900" fill="white" opacity="0.8">ALL OUT</text>
+      </svg>
+    ),
+  },
+  fifty: {
+    emoji: '🏏',
+    title: 'FIFTY!',
+    subtitle: 'Half Century',
+    gradient: 'from-blue-700 via-indigo-600 to-purple-700',
+    glow: 'shadow-[0_0_120px_40px_rgba(79,70,229,0.5)]',
+    ringColor: 'border-indigo-400',
+    particleColor: 'bg-indigo-400',
+    textColor: 'text-indigo-200',
+    accentColor: 'text-blue-100',
+    duration: 4500,
+    icon: (
+      <svg viewBox="0 0 100 100" className="w-20 h-20 drop-shadow-2xl">
+        <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="4" className="animate-[pulse_1.5s_ease-in-out_infinite]" />
+        <text x="50" y="58" textAnchor="middle" fontSize="40" fontWeight="900" fill="white" className="drop-shadow-lg">50</text>
+        <path d="M20,75 Q50,95 80,75" fill="none" stroke="#60a5fa" strokeWidth="4" strokeLinecap="round" className="animate-[bounce_2s_infinite]" />
+      </svg>
+    ),
+  },
+  century: {
+    emoji: '👑',
+    title: 'CENTURY!',
+    subtitle: 'What a knock!',
+    gradient: 'from-yellow-600 via-amber-500 to-orange-600',
+    glow: 'shadow-[0_0_150px_50px_rgba(245,158,11,0.6)]',
+    ringColor: 'border-amber-300',
+    particleColor: 'bg-amber-300',
+    textColor: 'text-yellow-100',
+    accentColor: 'text-orange-100',
+    duration: 5500,
+    icon: (
+      <svg viewBox="0 0 100 100" className="w-24 h-24 drop-shadow-2xl">
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#fde047" strokeWidth="4" strokeDasharray="12 6" className="animate-[spin_6s_linear_infinite]" />
+        <text x="50" y="58" textAnchor="middle" fontSize="42" fontWeight="900" fill="white" className="drop-shadow-lg">100</text>
+        <path d="M30,80 L50,95 L70,80" fill="none" stroke="#fef08a" strokeWidth="3" strokeLinejoin="round" />
+        <circle cx="50" cy="10" r="5" fill="#fde047" className="animate-[ping_1.5s_infinite]" />
       </svg>
     ),
   },
@@ -267,6 +324,19 @@ export default function CricketEventPopup({ event, onDismiss }) {
           </div>
         )}
 
+        {event.type === 'noball' && (
+          <div
+            className="text-center mt-1 space-y-2"
+            style={{ animation: 'slideUp 0.5s ease-out 0.5s both' }}
+          >
+            {data.bowlerName && <p className="text-xl font-bold text-white">{data.bowlerName}</p>}
+            <p className={`text-sm ${config.accentColor} opacity-80 uppercase tracking-widest`}>No ball called</p>
+            {data.runs != null && (
+              <p className="text-2xl font-black text-white">{data.runs} run{Number(data.runs) === 1 ? '' : 's'}</p>
+            )}
+          </div>
+        )}
+
         {event.type === 'six' && data.batsmanName && (
           <div
             className="text-center mt-1"
@@ -294,6 +364,18 @@ export default function CricketEventPopup({ event, onDismiss }) {
             {data.overs && (
               <p className={`text-sm ${config.accentColor} opacity-80 mt-1`}>({data.overs} overs)</p>
             )}
+          </div>
+        )}
+
+        {(event.type === 'fifty' || event.type === 'century') && data.batsmanName && (
+          <div
+            className="text-center mt-1"
+            style={{ animation: 'slideUp 0.5s ease-out 0.5s both' }}
+          >
+            <p className="text-2xl font-bold text-white">{data.batsmanName}</p>
+            <p className="text-4xl mt-3" style={{ animation: 'float 2.5s ease-in-out infinite' }}>
+              {event.type === 'century' ? '🙌🎉' : '👏✨'}
+            </p>
           </div>
         )}
 
