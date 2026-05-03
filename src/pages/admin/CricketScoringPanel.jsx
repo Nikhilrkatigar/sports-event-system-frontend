@@ -67,6 +67,8 @@ export default function CricketScoringPanel() {
 
   // End over
   const [newBowlerId, setNewBowlerId] = useState('');
+  const [endOverNewStrikerId, setEndOverNewStrikerId] = useState('');
+  const [endOverNewNonStrikerId, setEndOverNewNonStrikerId] = useState('');
 
   // No ball runs
   const [noBallRuns, setNoBallRuns] = useState(0);
@@ -181,6 +183,8 @@ export default function CricketScoringPanel() {
 
     if (isLiveInnings && overJustCompleted) {
       setNewBowlerId('');
+      setEndOverNewStrikerId('');
+      setEndOverNewNonStrikerId('');
       setShowEndOverModal(true);
       toast.success('✅ Over Complete! Select new bowler...');
     }
@@ -224,6 +228,32 @@ export default function CricketScoringPanel() {
       .map((p, i) => ({ ...p, index: String(i) }))
       .filter(p => p.isPlaying);
   };
+
+  // Helper: batsmen who can replace a spot (not out, not already at crease in the other spot)
+  // excludeId = playerId (index string) of the other crease occupant to avoid duplicate selection
+  const getBatsMenForSwap = (currentPlayerId, excludeId, genderFilter) => {
+    if (!battingTeam || !currentInnings) return [];
+    const outIds = new Set((currentInnings.batsmenStats || []).filter(b => b.isOut).map(b => b.playerId));
+    return battingTeam.players
+      .map((p, i) => ({ ...p, index: String(i) }))
+      .filter(p => {
+        if (!p.isPlaying) return false;
+        if (outIds.has(p.index)) return false;
+        // don't show the current occupant of this spot (they're already there)
+        if (String(p.index) === String(currentPlayerId)) return false;
+        // exclude whoever is occupying the other crease spot
+        if (excludeId && String(p.index) === String(excludeId)) return false;
+        // gender filter: only show same gender as the person being replaced
+        if (genderFilter && genderFilter !== 'unspecified' && p.gender && p.gender !== 'unspecified' && p.gender !== genderFilter) return false;
+        return true;
+      });
+  };
+
+  const isMixedMatch = (() => {
+    if (!battingTeam) return false;
+    const genders = (battingTeam.players || []).filter(p => p.isPlaying && p.gender && p.gender !== 'unspecified').map(p => p.gender);
+    return genders.includes('male') && genders.includes('female');
+  })();
 
   // ── Record a ball ──
   const recordBall = async (payload) => {
@@ -422,9 +452,14 @@ export default function CricketScoringPanel() {
   const handleEndOver = async () => {
     if (!newBowlerId) return toast.error('Select new bowler');
     try {
-      await API.post(`/cricket/matches/${matchId}/end-over`, { newBowlerId });
+      const payload = { newBowlerId };
+      if (endOverNewStrikerId) payload.newStrikerId = endOverNewStrikerId;
+      if (endOverNewNonStrikerId) payload.newNonStrikerId = endOverNewNonStrikerId;
+      await API.post(`/cricket/matches/${matchId}/end-over`, payload);
       setShowEndOverModal(false);
       setNewBowlerId('');
+      setEndOverNewStrikerId('');
+      setEndOverNewNonStrikerId('');
       toast.success('New over started');
       await loadMatch();
     } catch (err) {
@@ -954,6 +989,8 @@ export default function CricketScoringPanel() {
               }
               setShowEndOverModal(true);
               setNewBowlerId('');
+              setEndOverNewStrikerId('');
+              setEndOverNewNonStrikerId('');
             }}
             disabled={sending}
             className="py-4 rounded-xl text-base font-bold bg-indigo-500 text-white hover:bg-indigo-600 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/50 transition-all active:scale-95 disabled:opacity-50">
@@ -1090,17 +1127,104 @@ export default function CricketScoringPanel() {
 
       {/* ── END OVER MODAL ── */}
       {showEndOverModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowEndOverModal(false)}>
-          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">⏩ Select New Bowler</h3>
-            <div className="space-y-3">
-              {getAvailableBowlers().map(p => (
-                <button key={p.index} onClick={() => setNewBowlerId(p.index)}
-                  className={`w-full text-left px-4 py-3 rounded-xl transition-all ${newBowlerId === p.index ? 'bg-indigo-500 text-white' : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
-                  {ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}
-                  {p.index === match.currentBowlerId && ' — (current)'}
-                </button>
-              ))}
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowEndOverModal(false); setEndOverNewStrikerId(''); setEndOverNewNonStrikerId(''); }}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">⏩ End of Over</h3>
+            <div className="space-y-4">
+              {/* New Bowler */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Select New Bowler</p>
+                <div className="space-y-2">
+                  {getAvailableBowlers().map(p => (
+                    <button key={p.index} onClick={() => setNewBowlerId(p.index)}
+                      className={`w-full text-left px-4 py-3 rounded-xl transition-all ${newBowlerId === p.index ? 'bg-indigo-500 text-white' : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
+                      {ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}
+                      {p.index === match.currentBowlerId && ' — (current)'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Batsman Rotation — Mixed Match */}
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
+                  Change Batsman {isMixedMatch && <span className="text-pink-500 dark:text-pink-400">(Mixed Match — same gender)</span>}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Optional — swap a batsman at the end of this over</p>
+
+                {/* Striker swap */}
+                <div className="mb-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-yellow-500 text-sm">⚡</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Striker: <span className="font-bold">{striker?.playerName || '—'}</span>
+                      {striker && (() => {
+                        const p = battingTeam?.players?.find((_, i) => String(i) === String(match.currentStrikerId));
+                        return p?.gender && p.gender !== 'unspecified' ? (
+                          <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold ${p.gender === 'female' ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                            {p.gender === 'female' ? '♀' : '♂'}
+                          </span>
+                        ) : null;
+                      })()}
+                    </span>
+                  </div>
+                  <select
+                    value={endOverNewStrikerId}
+                    onChange={e => setEndOverNewStrikerId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white text-sm"
+                  >
+                    <option value="">Keep current striker</option>
+                    {getBatsMenForSwap(
+                      match.currentStrikerId,
+                      endOverNewNonStrikerId || match.currentNonStrikerId,
+                      isMixedMatch ? battingTeam?.players?.[parseInt(match.currentStrikerId)]?.gender : null
+                    ).map(p => (
+                      <option key={p.index} value={p.index}>
+                        {ROLE_EMOJI[p.role] || ''} {p.name}
+                        {p.gender && p.gender !== 'unspecified' ? (p.gender === 'female' ? ' ♀' : ' ♂') : ''}
+                        {p.isCaptain ? ' (C)' : ''}{p.isViceCaptain ? ' (VC)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Non-striker swap */}
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-gray-400 text-sm ml-0.5">●</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Non-striker: <span className="font-bold">{nonStriker?.playerName || '—'}</span>
+                      {nonStriker && (() => {
+                        const p = battingTeam?.players?.find((_, i) => String(i) === String(match.currentNonStrikerId));
+                        return p?.gender && p.gender !== 'unspecified' ? (
+                          <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full font-bold ${p.gender === 'female' ? 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}`}>
+                            {p.gender === 'female' ? '♀' : '♂'}
+                          </span>
+                        ) : null;
+                      })()}
+                    </span>
+                  </div>
+                  <select
+                    value={endOverNewNonStrikerId}
+                    onChange={e => setEndOverNewNonStrikerId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white text-sm"
+                  >
+                    <option value="">Keep current non-striker</option>
+                    {getBatsMenForSwap(
+                      match.currentNonStrikerId,
+                      endOverNewStrikerId || match.currentStrikerId,
+                      isMixedMatch ? battingTeam?.players?.[parseInt(match.currentNonStrikerId)]?.gender : null
+                    ).map(p => (
+                      <option key={p.index} value={p.index}>
+                        {ROLE_EMOJI[p.role] || ''} {p.name}
+                        {p.gender && p.gender !== 'unspecified' ? (p.gender === 'female' ? ' ♀' : ' ♂') : ''}
+                        {p.isCaptain ? ' (C)' : ''}{p.isViceCaptain ? ' (VC)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <button onClick={handleEndOver} disabled={!newBowlerId} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                 Start New Over
               </button>
