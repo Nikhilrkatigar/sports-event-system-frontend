@@ -104,7 +104,7 @@ export default function ManageEvents() {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
-        if (v !== '' && k !== 'imageUrl' && k !== 'paymentQRCode' && k !== 'paymentQRCodeUrl') {
+        if (v !== '' && k !== 'imageUrl' && k !== 'image' && k !== 'paymentQRCode' && k !== 'paymentQRCodeUrl') {
           if (k === 'date') {
             fd.append(k, toIsoFromDateInput(v));
             return;
