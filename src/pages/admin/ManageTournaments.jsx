@@ -484,7 +484,7 @@ export default function ManageTournaments() {
     
     const ok = await confirm({
       title: 'Generate Cricket Matches',
-      message: `This will create ${matches.length} cricket matches from your tournament fixtures. You can then start scoring from the Cricket page.`,
+      message: `This will create cricket matches for all pending fixtures (already completed and already-generated matches are skipped). You can then start scoring from the Cricket page.`,
       confirmText: 'Generate',
       cancelText: 'Cancel'
     });

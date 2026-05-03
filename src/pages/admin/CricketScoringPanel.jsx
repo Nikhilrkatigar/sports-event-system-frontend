@@ -137,7 +137,19 @@ export default function CricketScoringPanel() {
     if (!matchId) return;
     const socket = io(resolveSocketUrl(), { transports: ['websocket', 'polling'] });
     socket.emit('join_cricket_match', matchId);
-    socket.on('cricket_ball_update', () => { loadMatch(); loadDeliveries(); });
+    socket.on('cricket_ball_update', (data) => {
+      loadMatch();
+      loadDeliveries();
+      if (data?.matchSnapshot?.girlsPhaseEndedMidOver) {
+        toast.success('🏏 Girls all out! Boys phase starts from over 3.');
+        // Auto-open gender swap to select boys batsmen + boy bowler
+        setGenderSwapDirection('female_to_male');
+        setGenderSwapBowlerId('');
+        setGenderSwapStrikerId('');
+        setGenderSwapNonStrikerId('');
+        setShowGenderSwapModal(true);
+      }
+    });
     socket.on('cricket_wicket', () => loadMatch());
     socket.on('cricket_innings_end', () => { loadMatch(); loadDeliveries(); });
     socket.on('cricket_match_end', () => { loadMatch(); toast.success('🏆 Match completed!'); });
@@ -190,6 +202,20 @@ export default function CricketScoringPanel() {
     const overJustCompleted = ballsAdvanced && totalBalls > 0 && totalBalls % 6 === 0;
 
     if (isLiveInnings && overJustCompleted) {
+      // For mixed matches: when girls phase ends (totalBalls just hit 12 = 2 overs)
+      // and no striker is set, show the gender swap modal (boys phase start) instead.
+      const completedOversNow = Math.floor(totalBalls / 6);
+      const isMixed = (() => {
+        const bt = currentInnings.battingTeam ? match?.[currentInnings.battingTeam] : null;
+        if (!bt) return false;
+        const g = (bt.players || []).filter(p => p.isPlaying && p.gender && p.gender !== 'unspecified').map(p => p.gender);
+        return g.includes('male') && g.includes('female');
+      })();
+      const girlsPhaseJustEnded = isMixed && completedOversNow === 2 && !match?.currentStrikerId;
+      if (girlsPhaseJustEnded) {
+        // Gender swap modal already opened by socket handler — skip regular end-over modal
+        return;
+      }
       setNewBowlerId('');
       setEndOverNewStrikerId('');
       setEndOverNewNonStrikerId('');
@@ -262,6 +288,55 @@ export default function CricketScoringPanel() {
     const genders = (battingTeam.players || []).filter(p => p.isPlaying && p.gender && p.gender !== 'unspecified').map(p => p.gender);
     return genders.includes('male') && genders.includes('female');
   })();
+
+  // ── Mixed match phase helpers ──────────────────────────────────────────────
+  // Girls phase = overs 1-2 (completedOvers < 2) AND fewer than 2 girl wickets
+  const getGenderWicketCounts = () => {
+    if (!battingTeam || !currentInnings) return { girlWickets: 0, boyWickets: 0 };
+    let girlWickets = 0, boyWickets = 0;
+    for (const stat of currentInnings.batsmenStats || []) {
+      if (!stat.isOut || stat.dismissalType === 'retired_hurt') continue;
+      const idx = parseInt(stat.playerId, 10);
+      const player = battingTeam.players?.[idx];
+      if (player?.gender === 'female') girlWickets++;
+      else boyWickets++;
+    }
+    return { girlWickets, boyWickets };
+  };
+
+  const completedOvers = Math.floor((currentInnings?.totalBalls || 0) / 6);
+  const { girlWickets, boyWickets } = isMixedMatch ? getGenderWicketCounts() : { girlWickets: 0, boyWickets: 0 };
+  const isGirlsPhase = isMixedMatch && completedOvers < 2 && girlWickets < 2;
+  const currentPhaseGender = isMixedMatch ? (isGirlsPhase ? 'female' : 'male') : null;
+
+  // Required bowler gender for the NEXT over
+  const requiredBowlerGender = isMixedMatch ? (completedOvers < 2 ? 'female' : 'male') : null;
+
+  // Available bowlers filtered by required gender (for mixed matches)
+  const getAvailableBowlersForPhase = () => {
+    if (!bowlingTeam) return [];
+    return bowlingTeam.players
+      .map((p, i) => ({ ...p, index: String(i) }))
+      .filter(p => {
+        if (!p.isPlaying) return false;
+        if (requiredBowlerGender && p.gender && p.gender !== 'unspecified' && p.gender !== requiredBowlerGender) return false;
+        return true;
+      });
+  };
+
+  // Available new batsmen filtered by current phase gender
+  const getAvailableBatsmenForPhase = () => {
+    if (!battingTeam || !currentInnings) return [];
+    const usedNames = (currentInnings.batsmenStats || []).map(b => b.playerName);
+    return battingTeam.players
+      .map((p, i) => ({ ...p, index: String(i) }))
+      .filter(p => {
+        if (!p.isPlaying) return false;
+        if (usedNames.includes(p.name)) return false;
+        if (isMixedMatch && currentPhaseGender && p.gender && p.gender !== 'unspecified' && p.gender !== currentPhaseGender) return false;
+        return true;
+      });
+  };
 
   // ── Record a ball ──
   const recordBall = async (payload) => {
@@ -348,12 +423,15 @@ export default function CricketScoringPanel() {
 
   const handleWicket = async () => {
     if (!wicketType) return toast.error('Select dismissal type');
-    
-    // Check if this is an all-out situation (no available batsmen)
-    const availableBatsmen = getAvailableBatsmen();
-    const isAllOut = availableBatsmen.length === 0;
-    
-    if (availableBatsmen.length > 0 && !newBatsmanId && (currentInnings?.totalWickets || 0) < 9) {
+
+    const availableBatsmenForPhase = getAvailableBatsmenForPhase();
+    const maxWicketsBeforeAllOut = isMixedMatch ? 5 : 9;
+    const isPhaseAllOut = availableBatsmenForPhase.length === 0;
+    // Girls phase ends at 2 girl wickets — that's counted as "phase all out" too
+    const girlsPhaseWillEnd = isMixedMatch && isGirlsPhase && (girlWickets + 1) >= 2;
+    const isAllOut = isPhaseAllOut && !girlsPhaseWillEnd;
+
+    if (availableBatsmenForPhase.length > 0 && !newBatsmanId && (currentInnings?.totalWickets || 0) < maxWicketsBeforeAllOut && !girlsPhaseWillEnd) {
       return toast.error('Select new batsman');
     }
     
@@ -378,8 +456,9 @@ export default function CricketScoringPanel() {
       setWicketIsNoBall(false);
       setWicketRunsScored(0);
       
-      // Auto-end innings if all out
-      if (isAllOut) {
+      // Girls phase ends → backend handles the phase switch automatically.
+      // Only auto-end innings when the full innings is over (boys all out).
+      if (isAllOut && !girlsPhaseWillEnd) {
         toast.success('🚨 All Out! Ending innings automatically...');
         setTimeout(async () => {
           try {
@@ -743,7 +822,14 @@ export default function CricketScoringPanel() {
         {showStartInningsModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowStartInningsModal(false)}>
             <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-md w-full shadow-2xl text-left" onClick={e => e.stopPropagation()}>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">▶ Start {isSuperOverBreak ? `Super Over ${inningNum}` : `Innings ${inningNum}`}</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">▶ Start {isSuperOverBreak ? `Super Over ${inningNum}` : `Innings ${inningNum}`}</h3>
+              {!isSuperOverBreak && (() => {
+                const bPlayers = match[battingTeamKey]?.players || [];
+                const hasGenders = bPlayers.some(p => p.gender === 'male') && bPlayers.some(p => p.gender === 'female');
+                return hasGenders ? (
+                  <p className="text-xs font-semibold text-pink-600 dark:text-pink-400 mb-3">♀ Mixed match: girls bat & bowl for overs 1-2, boys for overs 3-7. Select girl opener &amp; girl bowler.</p>
+                ) : null;
+              })()}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">⚡ Striker ({match[battingTeamKey]?.name})</label>
@@ -893,6 +979,18 @@ export default function CricketScoringPanel() {
           <button onClick={() => navigate('/admin/cricket')} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">All Matches</button>
         </div>
       </div>
+
+      {/* Mixed Match Phase Indicator */}
+      {isMixedMatch && !isSO && (
+        <div className={`rounded-xl px-4 py-2 mb-3 flex items-center justify-between text-sm font-bold ${isGirlsPhase ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 border border-pink-200 dark:border-pink-800' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'}`}>
+          <span>{isGirlsPhase ? '♀ Girls Phase — Overs 1-2' : '♂ Boys Phase — Overs 3-7'}</span>
+          <span className="flex gap-3 text-xs font-semibold">
+            <span className="text-pink-600 dark:text-pink-400">♀ {girlWickets}/2 wkts</span>
+            <span className="text-blue-600 dark:text-blue-400">♂ {boyWickets}/4 wkts</span>
+            <span className="opacity-70">Over {completedOvers + 1}/{match.oversPerSide}</span>
+          </span>
+        </div>
+      )}
 
       {/* Score Banner */}
       <div className={`rounded-2xl p-5 mb-4 text-white shadow-xl ${isSO ? 'bg-gradient-to-r from-yellow-700 to-orange-800 border-2 border-yellow-400' : 'bg-gradient-to-r from-blue-900 to-indigo-900'}`}>
@@ -1207,20 +1305,31 @@ export default function CricketScoringPanel() {
                   </select>
                 </div>
               )}
-              {getAvailableBatsmen().length > 0 && (currentInnings?.totalWickets || 0) < 9 ? (
+              {getAvailableBatsmenForPhase().length > 0 && (currentInnings?.totalWickets || 0) < (isMixedMatch ? 5 : 9) ? (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Batsman</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    New Batsman {isMixedMatch && <span className={`text-xs font-bold ml-1 ${currentPhaseGender === 'female' ? 'text-pink-600 dark:text-pink-400' : 'text-blue-600 dark:text-blue-400'}`}>{currentPhaseGender === 'female' ? '(♀ girl only)' : '(♂ boy only)'}</span>}
+                  </label>
                   <select value={newBatsmanId} onChange={e => setNewBatsmanId(e.target.value)} className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white">
                     <option value="">Select new batsman...</option>
-                    {getAvailableBatsmen().map(p => (
-                      <option key={p.index} value={p.index}>{ROLE_EMOJI[p.role] || ''} {p.name}</option>
+                    {getAvailableBatsmenForPhase().map(p => (
+                      <option key={p.index} value={p.index}>{ROLE_EMOJI[p.role] || ''} {p.name}{p.gender && p.gender !== 'unspecified' ? (p.gender === 'female' ? ' ♀' : ' ♂') : ''}</option>
                     ))}
                   </select>
                 </div>
               ) : (
                 <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-xl border-2 border-red-300 dark:border-red-700">
-                  <p className="text-lg font-bold text-red-700 dark:text-red-300 text-center mb-2">🚨 ALL OUT!</p>
-                  <p className="text-sm text-red-600 dark:text-red-400 text-center">No batsmen remaining. Innings will end automatically.</p>
+                  {isMixedMatch && isGirlsPhase ? (
+                    <>
+                      <p className="text-lg font-bold text-pink-700 dark:text-pink-300 text-center mb-2">♀ Girls All Out!</p>
+                      <p className="text-sm text-pink-600 dark:text-pink-400 text-center">Boys phase will start automatically from Over 3.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-bold text-red-700 dark:text-red-300 text-center mb-2">🚨 ALL OUT!</p>
+                      <p className="text-sm text-red-600 dark:text-red-400 text-center">No batsmen remaining. Innings will end automatically.</p>
+                    </>
+                  )}
                 </div>
               )}
               <div className="flex gap-3">
@@ -1240,12 +1349,18 @@ export default function CricketScoringPanel() {
             <div className="space-y-4">
               {/* New Bowler */}
               <div>
-                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">Select New Bowler</p>
+                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">Select New Bowler</p>
+                {requiredBowlerGender && (
+                  <p className={`text-xs mb-2 font-semibold ${requiredBowlerGender === 'female' ? 'text-pink-600 dark:text-pink-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                    {requiredBowlerGender === 'female' ? '♀ Girls phase — select a girl bowler (max 1 over each)' : '♂ Boys phase — select a boy bowler (max 2 overs each)'}
+                  </p>
+                )}
                 <div className="space-y-2">
-                  {getAvailableBowlers().map(p => (
+                  {getAvailableBowlersForPhase().map(p => (
                     <button key={p.index} onClick={() => setNewBowlerId(p.index)}
                       className={`w-full text-left px-4 py-3 rounded-xl transition-all ${newBowlerId === p.index ? 'bg-indigo-500 text-white' : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}>
                       {ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}
+                      {p.gender && p.gender !== 'unspecified' ? (p.gender === 'female' ? ' ♀' : ' ♂') : ''}
                       {p.index === match.currentBowlerId && ' — (current)'}
                     </button>
                   ))}
