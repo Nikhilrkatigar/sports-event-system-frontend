@@ -33,6 +33,7 @@ export default function CricketScoringPanel() {
   const [showTossModal, setShowTossModal] = useState(false);
   const [showStartInningsModal, setShowStartInningsModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showRestartModal, setShowRestartModal] = useState(false);
   const [showEditMatchModal, setShowEditMatchModal] = useState(false);
   const [showUndoConfirmModal, setShowUndoConfirmModal] = useState(false);
   const [showNoBallRunsModal, setShowNoBallRunsModal] = useState(false);
@@ -69,6 +70,13 @@ export default function CricketScoringPanel() {
   const [newBowlerId, setNewBowlerId] = useState('');
   const [endOverNewStrikerId, setEndOverNewStrikerId] = useState('');
   const [endOverNewNonStrikerId, setEndOverNewNonStrikerId] = useState('');
+
+  // Gender swap modal (end girls'/boys' over → replace batsmen with other gender)
+  const [showGenderSwapModal, setShowGenderSwapModal] = useState(false);
+  const [genderSwapBowlerId, setGenderSwapBowlerId] = useState('');
+  const [genderSwapStrikerId, setGenderSwapStrikerId] = useState('');
+  const [genderSwapNonStrikerId, setGenderSwapNonStrikerId] = useState('');
+  const [genderSwapDirection, setGenderSwapDirection] = useState('female_to_male'); // 'female_to_male' or 'male_to_female'
 
   // No ball runs
   const [noBallRuns, setNoBallRuns] = useState(0);
@@ -467,6 +475,28 @@ export default function CricketScoringPanel() {
     }
   };
 
+  const handleGenderSwap = async () => {
+    if (!genderSwapBowlerId) return toast.error('Select new bowler');
+    if (!genderSwapStrikerId) return toast.error('Select new striker');
+    if (!genderSwapNonStrikerId) return toast.error('Select new non-striker');
+    if (genderSwapStrikerId === genderSwapNonStrikerId) return toast.error('Striker and non-striker must be different players');
+    try {
+      await API.post(`/cricket/matches/${matchId}/end-over`, {
+        newBowlerId: genderSwapBowlerId,
+        newStrikerId: genderSwapStrikerId,
+        newNonStrikerId: genderSwapNonStrikerId
+      });
+      setShowGenderSwapModal(false);
+      setGenderSwapBowlerId('');
+      setGenderSwapStrikerId('');
+      setGenderSwapNonStrikerId('');
+      toast.success('Over ended — new batsmen at the crease');
+      await loadMatch();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed');
+    }
+  };
+
   const handleChangeBowler = async () => {
     if (!newBowlerId) return toast.error('Select new bowler');
     try {
@@ -535,6 +565,18 @@ export default function CricketScoringPanel() {
       await loadMatch();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed');
+    }
+  };
+
+  const handleRestartMatch = async () => {
+    try {
+      await API.post(`/cricket/matches/${matchId}/restart`);
+      setShowRestartModal(false);
+      toast.success('Match restarted — all scoring cleared');
+      await loadMatch();
+      await loadDeliveries();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to restart match');
     }
   };
 
@@ -693,6 +735,9 @@ export default function CricketScoringPanel() {
           <button onClick={() => setShowEditMatchModal(true)} className="px-4 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
             ✎ Edit Overs
           </button>
+          <button onClick={() => setShowRestartModal(true)} className="px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-colors">
+            🔄 Restart
+          </button>
         </div>
 
         {showStartInningsModal && (
@@ -722,6 +767,18 @@ export default function CricketScoringPanel() {
                   </select>
                 </div>
                 <button onClick={isSuperOverBreak ? handleStartSuperOver : handleStartInnings} className="w-full py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors">Start ▶</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showRestartModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowRestartModal(false)}>
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="text-center mb-4"><p className="text-4xl mb-2">⚠️</p><h3 className="text-xl font-bold text-red-600 dark:text-red-400">Restart Match?</h3></div>
+              <p className="text-gray-600 dark:text-gray-400 text-sm text-center mb-6">This will <strong>erase all scoring</strong> — all deliveries, innings, toss and result will be wiped. Teams and overs will be kept. This cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowRestartModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+                <button onClick={handleRestartMatch} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700">Yes, Restart</button>
               </div>
             </div>
           </div>
@@ -798,7 +855,22 @@ export default function CricketScoringPanel() {
           <button onClick={() => navigate('/admin/cricket')} className="px-6 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors">
             ← All Matches
           </button>
+          <button onClick={() => setShowRestartModal(true)} className="px-6 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl font-medium hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-colors">
+            🔄 Restart Match
+          </button>
         </div>
+        {showRestartModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowRestartModal(false)}>
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+              <div className="text-center mb-4"><p className="text-4xl mb-2">⚠️</p><h3 className="text-xl font-bold text-red-600 dark:text-red-400">Restart Match?</h3></div>
+              <p className="text-gray-600 dark:text-gray-400 text-sm text-center mb-6">This will <strong>erase all scoring</strong> — all deliveries, innings, toss and result will be wiped. Teams and overs will be kept. This cannot be undone.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowRestartModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium">Cancel</button>
+                <button onClick={handleRestartMatch} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700">Yes, Restart</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1012,13 +1084,48 @@ export default function CricketScoringPanel() {
             End Innings
           </button>
         </div>
+
+        {/* Mixed Match: Gender swap buttons */}
+        {isMixedMatch && (
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <button
+              onClick={() => {
+                setGenderSwapDirection('female_to_male');
+                setGenderSwapBowlerId('');
+                setGenderSwapStrikerId('');
+                setGenderSwapNonStrikerId('');
+                setShowGenderSwapModal(true);
+              }}
+              disabled={sending}
+              className="py-3 rounded-xl text-sm font-bold bg-pink-100 dark:bg-pink-900/20 text-pink-700 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/40 border border-pink-200 dark:border-pink-800 transition-all active:scale-95 disabled:opacity-50">
+              ♀→♂ End Girls' Over
+            </button>
+            <button
+              onClick={() => {
+                setGenderSwapDirection('male_to_female');
+                setGenderSwapBowlerId('');
+                setGenderSwapStrikerId('');
+                setGenderSwapNonStrikerId('');
+                setShowGenderSwapModal(true);
+              }}
+              disabled={sending}
+              className="py-3 rounded-xl text-sm font-bold bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-800 transition-all active:scale-95 disabled:opacity-50">
+              ♂→♀ End Boys' Over
+            </button>
+          </div>
+        )}
       </div>
 
-      {match.currentState === 'innings_break' || match.status === 'completed' ? null : (
-        <button onClick={() => setShowCompleteModal(true)} className="w-full py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors mb-8">
-          Complete Match & Set MoM
+      <div className="flex gap-3 mb-8">
+        {match.currentState !== 'innings_break' && match.status !== 'completed' && (
+          <button onClick={() => setShowCompleteModal(true)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            Complete Match & Set MoM
+          </button>
+        )}
+        <button onClick={() => setShowRestartModal(true)} className="flex-1 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm font-medium hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800 transition-colors">
+          🔄 Restart Match
         </button>
-      )}
+      </div>
 
       {/* ── WICKET MODAL ── */}
       {showWicketModal && (
@@ -1489,6 +1596,145 @@ export default function CricketScoringPanel() {
           </div>
         </div>
       )}
+
+      {/* ── RESTART MATCH MODAL ── */}
+      {showRestartModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowRestartModal(false)}>
+          <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <p className="text-4xl mb-2">⚠️</p>
+              <h3 className="text-xl font-bold text-red-600 dark:text-red-400">Restart Match?</h3>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 text-sm text-center mb-6">
+              This will <strong>erase all scoring</strong> — all deliveries, innings, toss and result will be wiped. Teams and overs will be kept. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowRestartModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleRestartMatch} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors">
+                Yes, Restart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── GENDER SWAP MODAL (End Girls'/Boys' Over) ── */}
+      {showGenderSwapModal && (() => {
+        const incomingGender = genderSwapDirection === 'female_to_male' ? 'male' : 'female';
+        const outgoingGender = genderSwapDirection === 'female_to_male' ? 'female' : 'male';
+        const incomingLabel = incomingGender === 'male' ? 'Boy' : 'Girl';
+        const outgoingLabel = outgoingGender === 'male' ? 'Boy' : 'Girl';
+        const incomingEmoji = incomingGender === 'male' ? '♂' : '♀';
+        const headerColor = incomingGender === 'male' ? 'text-blue-600 dark:text-blue-400' : 'text-pink-600 dark:text-pink-400';
+        const btnColor = incomingGender === 'male' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-pink-600 hover:bg-pink-700';
+
+        // All playing batsmen of the incoming gender who are not out
+        const outIds = new Set((currentInnings?.batsmenStats || []).filter(b => b.isOut).map(b => b.playerId));
+        const incomingBatsmen = (battingTeam?.players || [])
+          .map((p, i) => ({ ...p, index: String(i) }))
+          .filter(p => p.isPlaying && p.gender === incomingGender && !outIds.has(p.index));
+
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowGenderSwapModal(false)}>
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <h3 className={`text-xl font-bold mb-1 ${headerColor}`}>
+                {incomingEmoji} End {outgoingLabel}s' Over — Bring in {incomingLabel}s
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                Select new bowler and replace both batsmen with {incomingLabel.toLowerCase()} players.
+              </p>
+
+              <div className="space-y-4">
+                {/* New Bowler */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">New Bowler ({bowlingTeam?.name})</label>
+                  <select
+                    value={genderSwapBowlerId}
+                    onChange={e => setGenderSwapBowlerId(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white"
+                  >
+                    <option value="">Select bowler...</option>
+                    {getAvailableBowlers().map(p => (
+                      <option key={p.index} value={p.index}>
+                        {ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}
+                        {p.gender && p.gender !== 'unspecified' ? (p.gender === 'female' ? ' ♀' : ' ♂') : ''}
+                        {p.index === match.currentBowlerId ? ' — (current)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* New Striker */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                    ⚡ New Striker — {incomingLabel} {incomingEmoji}
+                  </label>
+                  {incomingBatsmen.length === 0 ? (
+                    <p className="text-sm text-red-500 dark:text-red-400 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                      No available {incomingLabel.toLowerCase()} batsmen remaining
+                    </p>
+                  ) : (
+                    <select
+                      value={genderSwapStrikerId}
+                      onChange={e => setGenderSwapStrikerId(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white"
+                    >
+                      <option value="">Select new striker...</option>
+                      {incomingBatsmen
+                        .filter(p => p.index !== genderSwapNonStrikerId)
+                        .map(p => (
+                          <option key={p.index} value={p.index}>
+                            {ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}{p.isViceCaptain ? ' (VC)' : ''}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* New Non-striker */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
+                    Non-striker — {incomingLabel} {incomingEmoji}
+                  </label>
+                  {incomingBatsmen.length === 0 ? (
+                    <p className="text-sm text-red-500 dark:text-red-400 px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-xl">
+                      No available {incomingLabel.toLowerCase()} batsmen remaining
+                    </p>
+                  ) : (
+                    <select
+                      value={genderSwapNonStrikerId}
+                      onChange={e => setGenderSwapNonStrikerId(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 dark:text-white"
+                    >
+                      <option value="">Select new non-striker...</option>
+                      {incomingBatsmen
+                        .filter(p => p.index !== genderSwapStrikerId)
+                        .map(p => (
+                          <option key={p.index} value={p.index}>
+                            {ROLE_EMOJI[p.role] || ''} {p.name}{p.isCaptain ? ' (C)' : ''}{p.isViceCaptain ? ' (VC)' : ''}
+                          </option>
+                        ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => setShowGenderSwapModal(false)} className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-700">Cancel</button>
+                  <button
+                    onClick={handleGenderSwap}
+                    disabled={!genderSwapBowlerId || !genderSwapStrikerId || !genderSwapNonStrikerId}
+                    className={`flex-1 py-3 text-white rounded-xl font-bold disabled:opacity-50 transition-colors ${btnColor}`}
+                  >
+                    {incomingEmoji} Start {incomingLabel}s' Over
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
