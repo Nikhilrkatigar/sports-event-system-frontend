@@ -112,24 +112,6 @@ export default function HomePage() {
           </div>
         )}
         
-        {/* Cricket Live Section */}
-        <div className="mb-16">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white animate-slide-down">🏏 Live Cricket</h2>
-            <Link to="/cricket" className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-semibold">View All →</Link>
-          </div>
-          <Link to="/cricket" className="block bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 dark:from-red-800 dark:to-red-900 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm opacity-80 mb-2">Inter-Department Cricket League</p>
-                <h3 className="text-2xl font-bold mb-2">🔴 Live Cricket Matches</h3>
-                <p className="text-white/80">Watch live scores, statistics, and real-time updates from all cricket matches</p>
-              </div>
-              <div className="text-5xl">🏏</div>
-            </div>
-          </Link>
-        </div>
-
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white relative inline-block animate-slide-down">
             {t('sportsEvents')}
@@ -360,7 +342,7 @@ export default function HomePage() {
       )}
 
       <footer className="bg-gradient-to-r from-blue-900 to-blue-800 text-white text-center py-8 text-sm shadow-lg">
-        <p className="font-semibold text-lg animate-slide-up">2026 Global College of Management, IT & Commerce - IDCL</p>
+        <p className="font-semibold text-lg animate-slide-up">2026 Classic Degree College</p>
         <p className="text-blue-300 text-xs mt-2 animate-slide-up" style={{animationDelay: '0.1s'}}>Built and developed by Nikhil Katigar</p>
       </footer>
 
