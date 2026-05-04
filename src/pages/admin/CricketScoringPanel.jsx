@@ -199,11 +199,15 @@ export default function CricketScoringPanel() {
       && !currentInnings.isCompleted;
 
     const ballsAdvanced = totalBalls > previousTotalBalls;
+    const ballsJumped = totalBalls - (previousTotalBalls ?? 0);
     const overJustCompleted = ballsAdvanced && totalBalls > 0 && totalBalls % 6 === 0;
 
     if (isLiveInnings && overJustCompleted) {
-      // For mixed matches: when girls phase ends (totalBalls just hit 12 = 2 overs)
-      // and no striker is set, show the gender swap modal (boys phase start) instead.
+      // For mixed matches: when girls phase ends mid-over (totalBalls padded to 12),
+      // the backend clears currentStrikerId and the socket handler opens the gender
+      // swap modal. Detect this by: (a) balls jumped by more than 1 (padding), or
+      // (b) completedOvers just hit 2 and currentStrikerId is empty. Either way, skip
+      // the regular end-over modal to avoid opening two modals at once.
       const completedOversNow = Math.floor(totalBalls / 6);
       const isMixed = (() => {
         const bt = currentInnings.battingTeam ? match?.[currentInnings.battingTeam] : null;
@@ -211,7 +215,8 @@ export default function CricketScoringPanel() {
         const g = (bt.players || []).filter(p => p.isPlaying && p.gender && p.gender !== 'unspecified').map(p => p.gender);
         return g.includes('male') && g.includes('female');
       })();
-      const girlsPhaseJustEnded = isMixed && completedOversNow === 2 && !match?.currentStrikerId;
+      // ballsJumped > 1 means backend padded totalBalls (girls-phase-end mid-over)
+      const girlsPhaseJustEnded = isMixed && completedOversNow === 2 && (ballsJumped > 1 || !match?.currentStrikerId);
       if (girlsPhaseJustEnded) {
         // Gender swap modal already opened by socket handler — skip regular end-over modal
         return;
@@ -308,6 +313,8 @@ export default function CricketScoringPanel() {
   const { girlWickets, boyWickets } = isMixedMatch ? getGenderWicketCounts() : { girlWickets: 0, boyWickets: 0 };
   const isGirlsPhase = isMixedMatch && completedOvers < 2 && girlWickets < 2;
   const currentPhaseGender = isMixedMatch ? (isGirlsPhase ? 'female' : 'male') : null;
+  // True when the next girl wicket will end the girls phase (2nd girl wicket)
+  const nextWicketEndsGirlsPhase = isMixedMatch && isGirlsPhase && girlWickets === 1;
 
   // Required bowler gender for the NEXT over
   const requiredBowlerGender = isMixedMatch ? (completedOvers < 2 ? 'female' : 'male') : null;
@@ -364,14 +371,14 @@ export default function CricketScoringPanel() {
       setShowWideRunsModal(true);
     }
   };
-  const handleNoBall = (runs = 0) => {
-    if (runs > 0) {
+  const handleNoBall = (runs) => {
+    if (runs !== undefined) {
       recordBall({ isNoBall: true, runsScored: runs });
       setShowNoBallRunsModal(false);
       setNoBallRuns(0);
     } else {
-      setShowNoBallRunsModal(true);
       setNoBallRuns(0);
+      setShowNoBallRunsModal(true);
     }
   };
   const handleBye = (runs) => {
@@ -427,11 +434,9 @@ export default function CricketScoringPanel() {
     const availableBatsmenForPhase = getAvailableBatsmenForPhase();
     const maxWicketsBeforeAllOut = isMixedMatch ? 5 : 9;
     const isPhaseAllOut = availableBatsmenForPhase.length === 0;
-    // Girls phase ends at 2 girl wickets — that's counted as "phase all out" too
-    const girlsPhaseWillEnd = isMixedMatch && isGirlsPhase && (girlWickets + 1) >= 2;
-    const isAllOut = isPhaseAllOut && !girlsPhaseWillEnd;
+    const isAllOut = isPhaseAllOut && !nextWicketEndsGirlsPhase;
 
-    if (availableBatsmenForPhase.length > 0 && !newBatsmanId && (currentInnings?.totalWickets || 0) < maxWicketsBeforeAllOut && !girlsPhaseWillEnd) {
+    if (availableBatsmenForPhase.length > 0 && !newBatsmanId && (currentInnings?.totalWickets || 0) < maxWicketsBeforeAllOut && !nextWicketEndsGirlsPhase) {
       return toast.error('Select new batsman');
     }
     
@@ -458,7 +463,7 @@ export default function CricketScoringPanel() {
       
       // Girls phase ends → backend handles the phase switch automatically.
       // Only auto-end innings when the full innings is over (boys all out).
-      if (isAllOut && !girlsPhaseWillEnd) {
+      if (isAllOut && !nextWicketEndsGirlsPhase) {
         toast.success('🚨 All Out! Ending innings automatically...');
         setTimeout(async () => {
           try {
@@ -1128,7 +1133,7 @@ export default function CricketScoringPanel() {
           <button onClick={() => handleWide()} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-800 transition-all active:scale-95 disabled:opacity-50">
             Wide
           </button>
-          <button onClick={() => handleNoBall(0)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-800 transition-all active:scale-95 disabled:opacity-50">
+          <button onClick={() => handleNoBall()} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-100 dark:hover:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-800 transition-all active:scale-95 disabled:opacity-50">
             No Ball
           </button>
           <button onClick={() => setShowOverthrowModal(true)} disabled={sending} className="py-3 rounded-xl text-sm font-bold bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/40 border border-orange-200 dark:border-orange-800 transition-all active:scale-95 disabled:opacity-50">
@@ -1305,7 +1310,12 @@ export default function CricketScoringPanel() {
                   </select>
                 </div>
               )}
-              {getAvailableBatsmenForPhase().length > 0 && (currentInnings?.totalWickets || 0) < (isMixedMatch ? 5 : 9) ? (
+              {nextWicketEndsGirlsPhase ? (
+                <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-xl border-2 border-red-300 dark:border-red-700">
+                  <p className="text-lg font-bold text-pink-700 dark:text-pink-300 text-center mb-2">♀ Girls All Out!</p>
+                  <p className="text-sm text-pink-600 dark:text-pink-400 text-center">Boys phase will start automatically from Over 3.</p>
+                </div>
+              ) : getAvailableBatsmenForPhase().length > 0 && (currentInnings?.totalWickets || 0) < (isMixedMatch ? 5 : 9) ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     New Batsman {isMixedMatch && <span className={`text-xs font-bold ml-1 ${currentPhaseGender === 'female' ? 'text-pink-600 dark:text-pink-400' : 'text-blue-600 dark:text-blue-400'}`}>{currentPhaseGender === 'female' ? '(♀ girl only)' : '(♂ boy only)'}</span>}
@@ -1319,17 +1329,8 @@ export default function CricketScoringPanel() {
                 </div>
               ) : (
                 <div className="p-4 bg-red-50 dark:bg-red-900/30 rounded-xl border-2 border-red-300 dark:border-red-700">
-                  {isMixedMatch && isGirlsPhase ? (
-                    <>
-                      <p className="text-lg font-bold text-pink-700 dark:text-pink-300 text-center mb-2">♀ Girls All Out!</p>
-                      <p className="text-sm text-pink-600 dark:text-pink-400 text-center">Boys phase will start automatically from Over 3.</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-lg font-bold text-red-700 dark:text-red-300 text-center mb-2">🚨 ALL OUT!</p>
-                      <p className="text-sm text-red-600 dark:text-red-400 text-center">No batsmen remaining. Innings will end automatically.</p>
-                    </>
-                  )}
+                  <p className="text-lg font-bold text-red-700 dark:text-red-300 text-center mb-2">🚨 ALL OUT!</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 text-center">No batsmen remaining. Innings will end automatically.</p>
                 </div>
               )}
               <div className="flex gap-3">
