@@ -6,7 +6,6 @@ import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { getAdminHomeByRole, hasPermission } from './utils/roles';
 import ConfirmationDialog from './components/ConfirmationDialog';
-import WelcomeSplash from './components/WelcomeSplash';
 import { setConfirmDialogRef } from './hooks/useConfirm';
 import MobileBottomNav from './components/MobileBottomNav';
 import Dashboard from './pages/admin/Dashboard';
@@ -65,7 +64,6 @@ const PermissionRoute = ({ permission, children }) => {
 export default function App() {
   const onConfirmRef = useRef(null);
   const onCancelRef = useRef(null);
-  const [showSplash, setShowSplash] = useState(true); // Always show splash on page load
   const [dialogState, setDialogState] = useState({
     isOpen: false,
     title: '',
@@ -108,7 +106,6 @@ export default function App() {
 
   return (
     <>
-      {showSplash && <WelcomeSplash onComplete={() => setShowSplash(false)} />}
       <ThemeProvider>
         <LanguageProvider>
           <AuthProvider>

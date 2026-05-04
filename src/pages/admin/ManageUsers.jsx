@@ -4,14 +4,19 @@ import API from '../../utils/api';
 import { ROLE_DEFINITIONS } from '../../utils/roles';
 import { TableRowSkeleton } from '../../components/Skeletons';
 import PasswordInput from '../../components/PasswordInput';
+import { useConfirm } from '../../hooks/useConfirm';
+import { useAuth } from '../../context/AuthContext';
 
 const emptyForm = { name: '', email: '', password: '', role: 'Coordinator' };
 
 export default function ManageUsers() {
+  const { admin } = useAuth();
+  const { confirm } = useConfirm();
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadUsers = async () => {
     setPageLoading(true);
@@ -45,6 +50,34 @@ export default function ManageUsers() {
       toast.error(err.response?.data?.message || 'Failed to add user');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (String(user._id) === String(admin?._id)) {
+      toast.error('You cannot delete your own account');
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: 'Delete User',
+      message: `Are you sure you want to delete ${user.name}? This action cannot be undone.`,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      isDangerous: true,
+    });
+
+    if (!confirmed) return;
+
+    setDeletingId(user._id);
+    try {
+      await API.delete(`/users/${user._id}`);
+      toast.success('User deleted successfully');
+      loadUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete user');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -115,6 +148,7 @@ export default function ManageUsers() {
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Email</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Role</th>
                 <th className="px-4 py-3 text-left text-gray-600 font-medium">Created</th>
+                <th className="px-4 py-3 text-left text-gray-600 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -127,7 +161,7 @@ export default function ManageUsers() {
                   <TableRowSkeleton columns={4} />
                 </>
               ) : users.length === 0 ? (
-                <tr><td colSpan="4" className="px-4 py-8 text-center text-gray-400">No users found</td></tr>
+                <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-400">No users found</td></tr>
               ) : (
                 users.map((user) => (
                   <tr key={user._id} className="border-t border-gray-100">
@@ -135,6 +169,17 @@ export default function ManageUsers() {
                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
                     <td className="px-4 py-3 text-gray-700">{user.role}</td>
                     <td className="px-4 py-3 text-gray-500">{new Date(user.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={deletingId === user._id || String(user._id) === String(admin?._id)}
+                        className="px-3 py-2 text-xs font-semibold rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={String(user._id) === String(admin?._id) ? 'You cannot delete your own account' : 'Delete user'}
+                      >
+                        {deletingId === user._id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
