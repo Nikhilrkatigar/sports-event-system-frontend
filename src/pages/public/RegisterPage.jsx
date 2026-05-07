@@ -92,12 +92,14 @@ export default function RegisterPage() {
   const [expandedPlayer, setExpandedPlayer] = useState(0);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [playerSingleEventCount, setPlayerSingleEventCount] = useState(null);
+  const [playerTeamEventCount, setPlayerTeamEventCount] = useState(null);
   const [fetchingPlayerStatus, setFetchingPlayerStatus] = useState(false);
   const [termsContent, setTermsContent] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [maxPlayersPerTeam, setMaxPlayersPerTeam] = useState(5);
   const [maxSingleEventRegistrations, setMaxSingleEventRegistrations] = useState(2);
+  const [maxTeamEventRegistrations, setMaxTeamEventRegistrations] = useState(999);
   const [allowSubstitutes, setAllowSubstitutes] = useState(true);
   const [checkingTeamName, setCheckingTeamName] = useState(false);
   const [teamNameAvailability, setTeamNameAvailability] = useState({ available: null, message: '' });
@@ -115,6 +117,7 @@ export default function RegisterPage() {
         // Set registration limits from settings
         if (settingsRes.data?.maxPlayersPerTeam) setMaxPlayersPerTeam(settingsRes.data.maxPlayersPerTeam);
         if (settingsRes.data?.maxSingleEventRegistrations) setMaxSingleEventRegistrations(settingsRes.data.maxSingleEventRegistrations);
+        if (settingsRes.data?.maxTeamEventRegistrations) setMaxTeamEventRegistrations(settingsRes.data.maxTeamEventRegistrations);
         
         // Set substitute permission from settings
         if (settingsRes.data?.allowSubstitutes !== undefined) setAllowSubstitutes(settingsRes.data.allowSubstitutes);
@@ -140,6 +143,7 @@ export default function RegisterPage() {
     setTeamName('');
     setTeamNameAvailability({ available: null, message: '' });
     setPlayerSingleEventCount(null);
+    setPlayerTeamEventCount(null);
     if (event.type === 'team') {
       const nextPlayers = Array.from({ length: event.teamSize }, (_, index) => ({ ...emptyPlayer(), isTeamLeader: index === 0 }));
       setPlayers(nextPlayers);
@@ -175,9 +179,14 @@ export default function RegisterPage() {
         .then(res => {
           const existingRegs = res.data || [];
           const singleEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'single');
+          const teamEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'team');
           setPlayerSingleEventCount(singleEventRegs.length);
+          setPlayerTeamEventCount(teamEventRegs.length);
         })
-        .catch(() => setPlayerSingleEventCount(null))
+        .catch(() => {
+          setPlayerSingleEventCount(null);
+          setPlayerTeamEventCount(null);
+        })
         .finally(() => setFetchingPlayerStatus(false));
     }
   };
@@ -338,16 +347,45 @@ export default function RegisterPage() {
         const playerRegsRes = await API.get(`/registrations/player/${mainPlayer.uucms}`);
         const existingRegs = playerRegsRes.data || [];
         const singleEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'single');
+        const teamEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'team');
         
-        if (singleEventRegs.length >= 2) {
+        if (singleEventRegs.length >= maxSingleEventRegistrations) {
           return toast.error(
-            `Player ${mainPlayer.name} has already registered for ${singleEventRegs.length} single-player event(s). ` +
-            `Maximum allowed is 2 individual events. You can still register for team events (unlimited).`
+            `Player ${mainPlayer.name} has already registered for ${singleEventRegs.length} individual event(s). ` +
+            `Maximum allowed is ${maxSingleEventRegistrations} single-player events.${maxTeamEventRegistrations === 999 ? ' Team events are unlimited.' : ` Maximum allowed is ${maxTeamEventRegistrations} team events.`}`
+          );
+        }
+
+        if (maxTeamEventRegistrations < 999 && teamEventRegs.length >= maxTeamEventRegistrations) {
+          return toast.error(
+            `Player ${mainPlayer.name} has already registered for ${teamEventRegs.length} team event(s). ` +
+            `Maximum allowed is ${maxTeamEventRegistrations} team events.`
           );
         }
       } catch (err) {
         // If API endpoint doesn't exist, proceed with backend validation only
         console.warn('Could not fetch player registrations for validation', err);
+      }
+    }
+
+    if (selectedEvent.type === 'team' && maxTeamEventRegistrations < 999) {
+      try {
+        const participantCounts = await Promise.all(mainPlayers.map(async (player) => {
+          const playerRegsRes = await API.get(`/registrations/player/${player.uucms}`);
+          const existingRegs = playerRegsRes.data || [];
+          const teamEventRegs = existingRegs.filter(reg => reg.eventId?.type === 'team');
+          return { player, teamEventCount: teamEventRegs.length };
+        }));
+
+        const blockedPlayer = participantCounts.find(({ teamEventCount }) => teamEventCount >= maxTeamEventRegistrations);
+        if (blockedPlayer) {
+          return toast.error(
+            `Player ${blockedPlayer.player.name} has already registered for ${blockedPlayer.teamEventCount} team event(s). ` +
+            `Maximum allowed is ${maxTeamEventRegistrations} team events.`
+          );
+        }
+      } catch (err) {
+        console.warn('Could not fetch team registration counts for validation', err);
       }
     }
 
@@ -976,7 +1014,7 @@ export default function RegisterPage() {
                         </p>
                         <p className="text-xs text-red-700 dark:text-red-400 mt-1">
                           This player has already registered for {playerSingleEventCount} individual event(s). 
-                          Maximum allowed is {maxSingleEventRegistrations} single-player events. You can register for unlimited team events instead.
+                          Maximum allowed is {maxSingleEventRegistrations} single-player events.{maxTeamEventRegistrations === 999 ? ' Team events are unlimited.' : ` Maximum allowed is ${maxTeamEventRegistrations} team events.`}
                         </p>
                       </>
                     ) : playerSingleEventCount === 1 ? (
@@ -997,6 +1035,14 @@ export default function RegisterPage() {
                           This player can register for up to {maxSingleEventRegistrations} individual events.
                         </p>
                       </>
+                    )}
+                    {playerTeamEventCount !== null && (
+                      <p className="text-xs mt-2 text-gray-600 dark:text-gray-300">
+                        Team registrations: {playerTeamEventCount}
+                        {maxTeamEventRegistrations === 999
+                          ? ' (team events are unlimited)'
+                          : ` / ${maxTeamEventRegistrations}`}
+                      </p>
                     )}
                   </div>
                 )}
